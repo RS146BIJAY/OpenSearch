@@ -116,13 +116,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.CLUSTER_TOTAL_SHARDS_LIMIT_SETTING;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 
 /**
@@ -1160,12 +1162,16 @@ public class MetadataCreateIndexService {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings, state);
     }
 
-    public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
-        throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
+    public void validateIndexSettings(
+        String indexName,
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        ClusterState state
+    ) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName, state);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1174,15 +1180,26 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings, String indexName) {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        String indexName,
+        final ClusterState state
+    ) {
+        List<String> validationErrors = getIndexSettingsValidationErrors(
+            settings,
+            forbidPrivateIndexSettings,
+            Optional.of(indexName),
+            state
+        );
         return validationErrors;
     }
 
     List<String> getIndexSettingsValidationErrors(
         final Settings settings,
         final boolean forbidPrivateIndexSettings,
-        Optional<String> indexName
+        Optional<String> indexName,
+        final ClusterState clusterState
     ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
@@ -1200,7 +1217,42 @@ public class MetadataCreateIndexService {
                 validationErrors.add(error.get());
             }
         }
+
+        // Skip this check for MetadataIndexTemplate flow.
+        if (indexName.isPresent()) {
+            final int totalShardLimitOnCluster = CLUSTER_TOTAL_SHARDS_LIMIT_SETTING.get(settings);
+            int nodeShardCountAfterShardCreationForIndex = totalStartedShardOnCluster(clusterState, indexName.get()) + settings.getAsInt(
+                SETTING_NUMBER_OF_SHARDS,
+                0
+            );
+
+            if (totalShardLimitOnCluster > 0 && nodeShardCountAfterShardCreationForIndex > totalShardLimitOnCluster) {
+                validationErrors.add(
+                    "too many shards "
+                        + nodeShardCountAfterShardCreationForIndex
+                        + " allocated to this cluster, cluster setting ["
+                        + CLUSTER_TOTAL_SHARDS_LIMIT_SETTING.getKey()
+                        + "="
+                        + totalShardLimitOnCluster
+                        + "]"
+                );
+            }
+        }
+
         return validationErrors;
+    }
+
+    // Returns the count of total started shard on the cluster
+    private int totalStartedShardOnCluster(final ClusterState clusterState, final String indexName) {
+        final List<ShardRouting> shardRoutings = clusterState.getRoutingTable().allShards();
+        int totalStartedShardCountOnCluster = 0;
+        for (final ShardRouting shardRouting : shardRoutings) {
+            if (shardRouting.started() && !shardRouting.getIndexName().equals(indexName)) {
+                totalStartedShardCountOnCluster++;
+            }
+        }
+
+        return totalStartedShardCountOnCluster;
     }
 
     private static List<String> validatePrivateSettingsNotExplicitlySet(Settings settings, IndexScopedSettings indexScopedSettings) {
@@ -1249,8 +1301,8 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        assert IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
-        IndexMetadata.selectShrinkShards(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
+        IndexMetadata.selectShrinkShards(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
 
         if (sourceMetadata.getNumberOfShards() == 1) {
             throw new IllegalArgumentException("can't shrink an index with only one shard");
@@ -1279,12 +1331,12 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        IndexMetadata.selectSplitShard(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        IndexMetadata.selectCloneShard(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        IndexMetadata.selectCloneShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
     static IndexMetadata validateResize(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
@@ -1315,13 +1367,10 @@ public class MetadataCreateIndexService {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
-        if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+        if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             // this method applies all necessary checks ie. if the target shards are less than the source shards
             // of if the source shards are divisible by the number of target shards
-            IndexMetadata.getRoutingFactor(
-                sourceMetadata.getNumberOfShards(),
-                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings)
-            );
+            IndexMetadata.getRoutingFactor(sourceMetadata.getNumberOfShards(), INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
         return sourceMetadata;
     }

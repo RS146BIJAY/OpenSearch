@@ -139,7 +139,8 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
                     logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
                     listener.onFailure(e);
                 }
-            }
+            },
+            state
         );
     }
 }

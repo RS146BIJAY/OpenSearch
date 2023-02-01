@@ -2133,12 +2133,16 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             public void onFailure(Exception e) {
                 throwables.add(e);
             }
-        });
+        }, clusterState);
         return throwables;
     }
 
     private List<Throwable> putTemplateDetail(PutRequest request) throws Exception {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        Metadata metadata = Metadata.builder().build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -2153,7 +2157,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 throwables.add(e);
                 latch.countDown();
             }
-        });
+        }, clusterState);
         latch.await();
         return throwables;
     }

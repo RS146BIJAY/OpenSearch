@@ -1107,7 +1107,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
         );
 
-        List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
+        List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty(), clusterState);
         assertThat(validationErrors.size(), is(1));
         assertThat(validationErrors.get(0), is("expected total copies needs to be a multiple of total awareness attributes [3]"));
 
@@ -1119,7 +1119,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 2)
             .build();
 
-        validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
+        validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty(), clusterState);
         assertThat(validationErrors.size(), is(0));
 
         threadPool.shutdown();
@@ -1233,6 +1233,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testIndexLifecycleNameSetting() {
         // see: https://github.com/opensearch-project/OpenSearch/issues/1019
+        Metadata metadata = Metadata.builder()
+            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+
         final Settings ilnSetting = Settings.builder().put("index.lifecycle.name", "dummy").build();
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
@@ -1251,7 +1258,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
 
-            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true, Optional.empty());
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                ilnSetting,
+                true,
+                Optional.empty(),
+                clusterState
+            );
             assertThat(validationErrors.size(), is(1));
             assertThat(validationErrors.get(0), is("expected [index.lifecycle.name] to be private but it was not"));
         }));

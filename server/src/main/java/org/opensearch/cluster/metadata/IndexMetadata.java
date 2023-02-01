@@ -629,8 +629,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * The number of active shard copies to check for before proceeding with a write operation.
+     * Controls the maximum number of shards per cluster.
+     * Negative values are interpreted as unlimited.
      */
+    public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_LIMIT_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.total_shards_limit",
+        -1,
+        -1,
+        Property.Dynamic
+    );
+
     public static final Setting<ActiveShardCount> SETTING_WAIT_FOR_ACTIVE_SHARDS = new Setting<>(
         "index.write.wait_for_active_shards",
         "1",

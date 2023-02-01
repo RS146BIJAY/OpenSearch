@@ -323,7 +323,7 @@ public class MetadataIndexTemplateService {
         }
 
         validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
-        validate(name, finalComponentTemplate);
+        validate(name, finalComponentTemplate, currentState);
 
         // Validate all composable index templates that use this component template
         if (templatesUsingComponent.size() > 0) {
@@ -619,7 +619,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validate(name, finalIndexTemplate);
+        validate(name, finalIndexTemplate, currentState);
         validateDataStreamsStillReferenced(currentState, name, finalIndexTemplate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
@@ -878,7 +878,7 @@ public class MetadataIndexTemplateService {
         return matches;
     }
 
-    public void putTemplate(final PutRequest request, final PutListener listener) {
+    public void putTemplate(final PutRequest request, final PutListener listener, final ClusterState state) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
@@ -893,7 +893,7 @@ public class MetadataIndexTemplateService {
         }
 
         try {
-            validate(request);
+            validate(request, state);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -1431,15 +1431,15 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private void validate(String name, ComponentTemplate template) {
-        validate(name, template.template(), Collections.emptyList());
+    private void validate(String name, ComponentTemplate template, ClusterState state) {
+        validate(name, template.template(), Collections.emptyList(), state);
     }
 
-    private void validate(String name, ComposableIndexTemplate template) {
-        validate(name, template.template(), template.indexPatterns());
+    private void validate(String name, ComposableIndexTemplate template, ClusterState state) {
+        validate(name, template.template(), template.indexPatterns(), state);
     }
 
-    private void validate(String name, Template template, List<String> indexPatterns) {
+    private void validate(String name, Template template, List<String> indexPatterns, ClusterState state) {
         Optional<Template> maybeTemplate = Optional.ofNullable(template);
         validate(
             name,
@@ -1450,7 +1450,8 @@ public class MetadataIndexTemplateService {
                 .values()
                 .stream()
                 .map(MetadataIndexTemplateService::toAlias)
-                .collect(Collectors.toList())
+                .collect(Collectors.toList()),
+            state
         );
     }
 
@@ -1466,11 +1467,11 @@ public class MetadataIndexTemplateService {
         return a;
     }
 
-    private void validate(PutRequest putRequest) {
-        validate(putRequest.name, putRequest.settings, putRequest.indexPatterns, putRequest.aliases);
+    private void validate(PutRequest putRequest, final ClusterState state) {
+        validate(putRequest.name, putRequest.settings, putRequest.indexPatterns, putRequest.aliases, state);
     }
 
-    private void validate(String name, @Nullable Settings settings, List<String> indexPatterns, List<Alias> aliases) {
+    private void validate(String name, @Nullable Settings settings, List<String> indexPatterns, List<Alias> aliases, ClusterState state) {
         List<String> validationErrors = new ArrayList<>();
         if (name.contains(" ")) {
             validationErrors.add("name must not contain a space");
@@ -1526,7 +1527,8 @@ public class MetadataIndexTemplateService {
             List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(
                 settings,
                 true,
-                Optional.empty()
+                Optional.empty(),
+                state
             );
             validationErrors.addAll(indexSettingsValidation);
         }
