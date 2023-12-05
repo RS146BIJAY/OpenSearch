@@ -130,7 +130,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
  */
 
 public final class TieredMergePolicyProvider implements MergePolicyProvider {
-    private final OpenSearchTieredMergePolicy tieredMergePolicy = new OpenSearchTieredMergePolicy();
+    private final DataAwareSegmentMergePolicy tieredMergePolicy = new DataAwareSegmentMergePolicy();
 
     private final Logger logger;
     private final boolean mergesEnabled;
