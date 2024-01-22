@@ -507,12 +507,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testMergeSegmentsOnCommitIsDisabled() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-
-        final Settings.Builder settings = Settings.builder()
-            .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false);
-        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        final IndexSettings indexSettings = getIndexSettingsWithMergeOnFlushDisabled();
 
         try (
             Store store = createStore();
@@ -3233,6 +3228,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpEnabled() throws Exception {
+        final IndexSettings indexSettings = getIndexSettingsWithMergeOnFlushDisabled();
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
@@ -3280,7 +3276,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
             InternalEngine engine = createEngine(
                 config(
-                    defaultSettings,
+                    indexSettings,
                     store,
                     createTempDir(),
                     newMergePolicy(),
@@ -3312,9 +3308,9 @@ public class InternalEngineTests extends EngineTestCase {
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(2));
 
-            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            // IndexWriter can throw either IOException, IllegalStateException or MergeException depending on whether tragedy is set or not.
             expectThrowsAnyOf(
-                Arrays.asList(IOException.class, IllegalStateException.class),
+                Arrays.asList(IOException.class, IllegalStateException.class, MergePolicy.MergeException.class),
                 () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
             );
 
@@ -3328,6 +3324,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpDisabled() throws Exception {
+        IndexSettings indexSettings = getIndexSettingsWithMergeOnFlushDisabled();
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
@@ -3374,7 +3371,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
             InternalEngine engine = createEngine(
                 config(
-                    defaultSettings,
+                    indexSettings,
                     store,
                     createTempDir(),
                     newMergePolicy(),
@@ -3389,7 +3386,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             // Disable cleanup
-            final IndexSettings indexSettings = engine.config().getIndexSettings();
+            indexSettings = engine.config().getIndexSettings();
             final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
                 .settings(
                     Settings.builder().put(indexSettings.getSettings()).put(IndexSettings.INDEX_UNREFERENCED_FILE_CLEANUP.getKey(), false)
@@ -3431,6 +3428,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testUnreferencedFileCleanUpFailsOnSegmentMergeFailureWhenDirectoryClosed() throws Exception {
+        IndexSettings indexSettings = getIndexSettingsWithMergeOnFlushDisabled();
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
@@ -3470,7 +3468,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
             InternalEngine engine = createEngine(
                 config(
-                    defaultSettings,
+                    indexSettings,
                     store,
                     createTempDir(),
                     newMergePolicy(),
@@ -8087,5 +8085,13 @@ public class InternalEngineTests extends EngineTestCase {
 
         store.close();
         engine.close();
+    }
+
+    private IndexSettings getIndexSettingsWithMergeOnFlushDisabled() {
+        final Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        return IndexSettingsModule.newIndexSettings(indexMetadata);
     }
 }
