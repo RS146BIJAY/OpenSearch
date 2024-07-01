@@ -780,10 +780,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
          * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
          */
         ShardRouting[] unassignedShards = unassigned.drain();
-        List<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toList());
-        List<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
+        Set<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toSet());
+        Set<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
             .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
-            .collect(Collectors.toList());
+            .collect(Collectors.toSet());
         allUnassignedShards.removeAll(localUnassignedShards);
         allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
         unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
