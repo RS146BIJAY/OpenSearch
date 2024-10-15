@@ -61,14 +61,14 @@ public class CompositeAggIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         indexRandom(
             true,
-            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "5"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "11", "score", "50"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "2"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "12", "score", "20"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "10"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "15"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "1"),
-            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "100")
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "5", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "11", "score", "50", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "2", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "12", "score", "20", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "10", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "15", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "1", "status", "400"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "100", "status", "400")
         );
 
         waitForRelocation(ClusterHealthStatus.GREEN);

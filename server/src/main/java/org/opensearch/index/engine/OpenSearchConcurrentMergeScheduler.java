@@ -80,13 +80,19 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
+    private final String associatedIndexWriterCriteria;
 
-    OpenSearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    OpenSearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, String associatedIndexWriterCriteria) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.associatedIndexWriterCriteria = associatedIndexWriterCriteria;
         refreshConfig();
+    }
+
+    public String getAssociatedIndexWriterCriteria() {
+        return associatedIndexWriterCriteria;
     }
 
     public Set<OnGoingMerge> onGoingMerges() {

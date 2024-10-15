@@ -37,6 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.CriteriaBasedCompositeDirectory;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -179,6 +180,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
+    private final Map<String, Directory> directoryMapping;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
@@ -196,21 +198,35 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null, null);
     }
 
     public Store(
         ShardId shardId,
         IndexSettings indexSettings,
-        Directory directory,
+        Directory multiTenantDirectory,
         ShardLock shardLock,
         OnClose onClose,
-        ShardPath shardPath
+        ShardPath shardPath,
+        Map<String, Directory> criteriaDirectoryMapping
     ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
-        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
+        if (criteriaDirectoryMapping != null) {
+            multiTenantDirectory = new CriteriaBasedCompositeDirectory(multiTenantDirectory,criteriaDirectoryMapping);
+            this.directoryMapping = new HashMap<>(criteriaDirectoryMapping.size());
+            criteriaDirectoryMapping.keySet().forEach(criteria -> {
+                directoryMapping.put(criteria,
+                    new StoreDirectory(new ByteSizeCachingDirectory(criteriaDirectoryMapping.get(criteria), refreshInterval),
+                        Loggers.getLogger("index.store.deletes", shardId)));
+            });
+
+        } else {
+            this.directoryMapping = null;
+        }
+
+        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(multiTenantDirectory, refreshInterval);
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
@@ -223,6 +239,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    public Map<String, Directory> getDirectoryMapping() {
+        return directoryMapping;
     }
 
     public ShardPath shardPath() {
@@ -1774,7 +1794,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void createEmpty(Version luceneVersion, String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
+        try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion);
+             IndexWriter w2 = newEmptyIndexWriter(directoryMapping.get("200"), luceneVersion);
+             IndexWriter w4 = newEmptyIndexWriter(directoryMapping.get("400"), luceneVersion);) {
             final Map<String, String> map = new HashMap<>();
             if (translogUUID != null) {
                 map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
@@ -1784,6 +1806,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
             updateCommitData(writer, map);
+            updateCommitData(w2, map);
+            updateCommitData(w4, map);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1821,12 +1845,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory(long localCheckpoint, long maxSeqNo) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null);
+             IndexWriter w2 = newAppendingIndexWriter(directoryMapping.get("200"), null);
+             IndexWriter w4 = newAppendingIndexWriter(directoryMapping.get("400"), null);) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             updateCommitData(writer, map);
+            updateCommitData(w2, map);
+            updateCommitData(w4, map);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1839,11 +1867,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void associateIndexWithNewTranslog(final String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null);
+             IndexWriter w2 = newAppendingIndexWriter(directoryMapping.get("200"), null);
+             IndexWriter w4 = newAppendingIndexWriter(directoryMapping.get("400"), null);) {
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
+
+            System.out.println("Translog UUID (SegmentInfos): " + translogUUID + " for path " + shardPath.getDataPath().toString());
             updateCommitData(writer, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
+            updateCommitData(w2, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
+            updateCommitData(w4, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
+        } catch (Exception ex) {
+            throw ex;
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1854,10 +1890,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void ensureIndexHasHistoryUUID() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null);
+             IndexWriter w2 = newAppendingIndexWriter(directoryMapping.get("200"), null);
+             IndexWriter w4 = newAppendingIndexWriter(directoryMapping.get("400"), null)) {
             final Map<String, String> userData = getUserData(writer);
             if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
                 updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
+                updateCommitData(w2, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
+                updateCommitData(w4, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
             }
         } finally {
             metadataLock.writeLock().unlock();
@@ -1956,6 +1996,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
+        System.out.println("Path for IndexWriter inside newEmptyIndexWriter inside Store: " + dir);
         IndexWriterConfig iwc = newIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(luceneVersion.major);
         return new IndexWriter(dir, iwc);

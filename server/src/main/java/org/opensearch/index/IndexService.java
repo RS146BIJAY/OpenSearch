@@ -138,6 +138,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 import static org.opensearch.common.util.FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
+import static org.opensearch.index.store.FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING;
 
 /**
  * The main OpenSearch index service
@@ -630,7 +631,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         // Do nothing for shard lock on remote store
                     }
                 };
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, remoteStoreLock, Store.OnClose.EMPTY, path);
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, remoteStoreLock, Store.OnClose.EMPTY, path, null);
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
                 // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
@@ -645,6 +646,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             Directory directory = null;
+            Map<String, Directory> criteriaDirectoryMapping = null;
             if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isStoreLocalityPartial()) {
@@ -652,6 +654,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory = new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
+                criteriaDirectoryMapping = new HashMap<>();
+                criteriaDirectoryMapping.put("200", directoryFactory.newFSDirectory(path.resolveIndex().resolve("200"),
+                    this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING), this.indexSettings));
+                criteriaDirectoryMapping.put("400", directoryFactory.newFSDirectory(path.resolveIndex().resolve("400"),
+                    this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING), this.indexSettings));
             }
             store = new Store(
                 shardId,
@@ -659,8 +666,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                path
+                path,
+                criteriaDirectoryMapping
             );
+
+
+
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,

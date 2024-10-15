@@ -166,6 +166,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -276,11 +277,15 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-        return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()), shardPath);
+        Map<String, Directory> criteriaDirectoryMapping = new HashMap<>();
+        criteriaDirectoryMapping.put("200", newFSDirectory(shardPath.resolveIndex().resolve("200")));
+        criteriaDirectoryMapping.put("400", newFSDirectory(shardPath.resolveIndex().resolve("400")));
+        return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()), shardPath,
+            criteriaDirectoryMapping);
     }
 
-    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardPath shardPath) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath);
+    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardPath shardPath, Map<String, Directory> criteriaDirectoryMapping) throws IOException {
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath, criteriaDirectoryMapping);
     }
 
     protected Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
@@ -793,7 +798,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
         ShardId shardId = shardRouting.shardId();
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = createRemoteSegmentStoreDirectory(shardId, path);
-        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory, shardPath);
+        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory, shardPath, null);
     }
 
     protected RemoteSegmentStoreDirectory createRemoteSegmentStoreDirectory(ShardId shardId, Path path) throws IOException {

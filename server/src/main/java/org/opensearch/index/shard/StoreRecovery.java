@@ -234,6 +234,7 @@ final class StoreRecovery {
             .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
+        System.out.println("Path for IndexWriter inside addIndices inside StoreRecovery: " + hardLinkOrCopyTarget);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
@@ -743,6 +744,8 @@ final class StoreRecovery {
                     shardId,
                     indexShard.getPendingPrimaryTerm()
                 );
+
+                System.out.println("Translog UUID (From Translog path): " + translogUUID + " for path " + store.shardPath().getDataPath().toString());
                 store.associateIndexWithNewTranslog(translogUUID);
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
@@ -864,6 +867,7 @@ final class StoreRecovery {
         final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        System.out.println("Translog UUID (From StoreRecovery bootstrapForSnapshot): " + translogUUID);
         Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(),
             shardId,
@@ -884,6 +888,8 @@ final class StoreRecovery {
             shardId,
             indexShard.getPendingPrimaryTerm()
         );
+
+        System.out.println("Translog UUID (From StoreRecovery bootstrap): " + translogUUID);
         store.associateIndexWithNewTranslog(translogUUID);
     }
 }

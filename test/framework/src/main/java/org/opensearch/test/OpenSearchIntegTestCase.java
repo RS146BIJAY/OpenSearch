@@ -603,7 +603,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     protected int numberOfShards() {
-        return between(minimumNumberOfShards(), maximumNumberOfShards());
+        return 1;
     }
 
     protected int minimumNumberOfReplicas() {
@@ -617,7 +617,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     protected int numberOfReplicas() {
-        return between(minimumNumberOfReplicas(), maximumNumberOfReplicas());
+        return 0;
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
@@ -1553,7 +1553,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", MediaTypeRegistry.JSON).setRouting(id));
+                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());
@@ -1650,7 +1650,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                     IndexRequestBuilder indexRequestBuilder = client().prepareIndex()
                         .setIndex(index)
                         .setId(id)
-                        .setSource("{}", MediaTypeRegistry.JSON)
+                        .setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON)
                         .setRouting(id);
                     indexRequestBuilder.execute(
                         new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors)

@@ -173,6 +173,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -1782,8 +1783,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 return in.getPendingDeletions();
             }
         };
+        Map<String, Directory> criteriaDirectoryMapping = getStringDirectoryMap(shardPath, exceptionToThrow, throwWhenMarkingStoreCorrupted);
 
-        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory, shardPath)) {
+        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory, shardPath, criteriaDirectoryMapping)) {
             IndexShard shard = newShard(
                 shardRouting,
                 shardPath,
@@ -1817,6 +1819,73 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
+    }
+
+    private static Map<String, Directory> getStringDirectoryMap(ShardPath shardPath, AtomicReference<Supplier<IOException>> exceptionToThrow, AtomicBoolean throwWhenMarkingStoreCorrupted) {
+        Directory directory2 = new FilterDirectory(newFSDirectory(shardPath.resolveIndex().resolve("200"))) {
+            // fileLength method is called during storeStats try block
+            // it's not called when store is marked as corrupted
+            @Override
+            public long fileLength(String name) throws IOException {
+                Supplier<IOException> ex = exceptionToThrow.get();
+                if (ex == null) {
+                    return super.fileLength(name);
+                } else {
+                    throw ex.get();
+                }
+            }
+
+            // listAll method is called when marking store as corrupted
+            @Override
+            public String[] listAll() throws IOException {
+                Supplier<IOException> ex = exceptionToThrow.get();
+                if (throwWhenMarkingStoreCorrupted.get() && ex != null) {
+                    throw ex.get();
+                } else {
+                    return super.listAll();
+                }
+            }
+
+            // temporary override until LUCENE-8735 is integrated
+            @Override
+            public Set<String> getPendingDeletions() throws IOException {
+                return in.getPendingDeletions();
+            }
+        };
+        Directory directory4 = new FilterDirectory(newFSDirectory(shardPath.resolveIndex().resolve("400"))) {
+            // fileLength method is called during storeStats try block
+            // it's not called when store is marked as corrupted
+            @Override
+            public long fileLength(String name) throws IOException {
+                Supplier<IOException> ex = exceptionToThrow.get();
+                if (ex == null) {
+                    return super.fileLength(name);
+                } else {
+                    throw ex.get();
+                }
+            }
+
+            // listAll method is called when marking store as corrupted
+            @Override
+            public String[] listAll() throws IOException {
+                Supplier<IOException> ex = exceptionToThrow.get();
+                if (throwWhenMarkingStoreCorrupted.get() && ex != null) {
+                    throw ex.get();
+                } else {
+                    return super.listAll();
+                }
+            }
+
+            // temporary override until LUCENE-8735 is integrated
+            @Override
+            public Set<String> getPendingDeletions() throws IOException {
+                return in.getPendingDeletions();
+            }
+        };
+        Map<String, Directory> criteriaDirectoryMapping = new HashMap<>();
+        criteriaDirectoryMapping.put("200", directory2);
+        criteriaDirectoryMapping.put("400", directory4);
+        return criteriaDirectoryMapping;
     }
 
     public void testShardStatsWithRemoteStoreEnabled() throws IOException {

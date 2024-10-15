@@ -47,7 +47,7 @@ import java.util.HashSet;
 public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         return new SmbDirectoryWrapper(
             setPreload(
                 new MMapDirectory(location, lockFactory),
@@ -56,4 +56,6 @@ public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
             )
         );
     }
+
+
 }

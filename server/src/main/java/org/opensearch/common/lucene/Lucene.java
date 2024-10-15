@@ -263,6 +263,7 @@ public class Lucene {
                     .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // force creation - don't append...
             )
         ) {
+            System.out.println("Path for IndexWriter inside cleanLuceneIndex inside Lucene: " + directory);
             // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         }
     }

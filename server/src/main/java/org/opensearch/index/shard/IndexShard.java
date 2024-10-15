@@ -2591,6 +2591,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
                     final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
                     final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    System.out.println("Translog UUID (From IndexShard innerOpenEngineAndTranslog): " + translogUUID);
                     Translog.createEmptyTranslog(
                         shardPath().resolveTranslog(),
                         shardId(),

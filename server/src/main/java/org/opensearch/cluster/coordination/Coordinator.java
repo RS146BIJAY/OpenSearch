@@ -1357,6 +1357,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
+                System.out.println("Cluster state published from coordinator " + clusterState);
                 coordinationState.get().handlePrePublish(clusterState);
                 publication.start(followersChecker.getFaultyNodes());
             }

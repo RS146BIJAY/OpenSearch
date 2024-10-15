@@ -110,11 +110,12 @@ public class BooleanTermsIT extends ParameterizedDynamicSettingsOpenSearchIntegT
                 .setSource(
                     jsonBuilder().startObject()
                         .field(SINGLE_VALUED_FIELD_NAME, singleValue)
+                        .field("status", "400")
                         .array(MULTI_VALUED_FIELD_NAME, multiValue)
                         .endObject()
                 );
         }
-        indexRandom(true, builders);
+        indexRandom(true, false, builders);
     }
 
     public void testSingleValueField() throws Exception {

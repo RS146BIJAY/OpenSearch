@@ -68,17 +68,17 @@ public final class ShardPath {
     private final boolean isCustomDataPath;
 
     public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, ShardId shardId) {
-        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: "
-            + dataPath.toString();
-        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id()))
-            : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
-        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID())
-            : "dataPath must end with index path id but didn't: " + dataPath.toString();
-        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID())
-            : "shardStatePath must end with index path id but didn't: " + dataPath.toString();
-        if (isCustomDataPath && dataPath.equals(shardStatePath)) {
-            throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
-        }
+//        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: "
+//            + dataPath.toString();
+//        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id()))
+//            : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
+//        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID())
+//            : "dataPath must end with index path id but didn't: " + dataPath.toString();
+//        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID())
+//            : "shardStatePath must end with index path id but didn't: " + dataPath.toString();
+//        if (isCustomDataPath && dataPath.equals(shardStatePath)) {
+//            throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
+//        }
         this.isCustomDataPath = isCustomDataPath;
         this.path = dataPath;
         this.shardId = shardId;

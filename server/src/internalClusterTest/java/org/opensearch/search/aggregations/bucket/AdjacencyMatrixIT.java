@@ -109,7 +109,7 @@ public class AdjacencyMatrixIT extends ParameterizedDynamicSettingsOpenSearchInt
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
             numSingleTag1Docs++;
-            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag1").endObject();
+            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("status", "400").field("tag", "tag1").endObject();
             builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted
@@ -119,7 +119,7 @@ public class AdjacencyMatrixIT extends ParameterizedDynamicSettingsOpenSearchInt
         }
         for (int i = numTag1Docs; i < (numTag1Docs + numTag2Docs); i++) {
             numSingleTag2Docs++;
-            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag2").endObject();
+            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("status", "400").field("tag", "tag2").endObject();
             builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
                 builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
@@ -129,7 +129,7 @@ public class AdjacencyMatrixIT extends ParameterizedDynamicSettingsOpenSearchInt
             numMultiTagDocs++;
             numTag1Docs++;
             numTag2Docs++;
-            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).array("tag", "tag1", "tag2").endObject();
+            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("status", "400").array("tag", "tag1", "tag2").endObject();
             builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
                 builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
@@ -140,10 +140,10 @@ public class AdjacencyMatrixIT extends ParameterizedDynamicSettingsOpenSearchInt
             builders.add(
                 client().prepareIndex("empty_bucket_idx")
                     .setId("" + i)
-                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).field("status", "400").endObject())
             );
         }
-        indexRandom(true, builders);
+        indexRandom(true, false, builders);
         ensureSearchable();
     }
 

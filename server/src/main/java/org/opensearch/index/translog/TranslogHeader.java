@@ -236,7 +236,26 @@ public final class TranslogHeader {
         // Write uuid
         final BytesRef uuid = new BytesRef(translogUUID);
         out.writeInt(uuid.length);
+        System.out.println("Translog UUID (From TranslogHeader write without path): " + translogUUID);
         out.writeBytes(uuid.bytes, uuid.offset, uuid.length);
+        // Write primary term
+        out.writeLong(primaryTerm);
+        // Checksum header
+        out.writeInt((int) out.getChecksum());
+        out.flush();
+    }
+
+    // For testing.
+    void write(final OutputStream outputStream, final FileChannel channel) throws IOException {
+        // This output is intentionally not closed because closing it will close the FileChannel.
+        @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })
+        final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(new OutputStreamStreamOutput(outputStream));
+        CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);
+        // Write uuid
+        final BytesRef uuid = new BytesRef(translogUUID);
+        out.writeInt(uuid.length);
+        out.writeBytes(uuid.bytes, uuid.offset, uuid.length);
+        System.out.println("Translog UUID (From TranslogHeader write): " + translogUUID + " for path " + channel);
         // Write primary term
         out.writeLong(primaryTerm);
         // Checksum header
@@ -246,7 +265,7 @@ public final class TranslogHeader {
 
     void write(final FileChannel channel, boolean fsync) throws IOException {
         OutputStream outputStream = java.nio.channels.Channels.newOutputStream(channel);
-        write(outputStream);
+        write(outputStream, channel);
         if (fsync == true) {
             channel.force(true);
         }

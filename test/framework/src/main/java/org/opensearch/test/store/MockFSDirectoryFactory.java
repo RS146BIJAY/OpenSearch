@@ -37,7 +37,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -63,11 +65,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.opensearch.index.store.FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING;
 
 public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     public static final List<IndexModule.Type> FILE_SYSTEM_BASED_STORE_TYPES = Arrays.stream(IndexModule.Type.values())
@@ -100,6 +105,11 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         Settings indexSettings = idxSettings.getSettings();
         Random random = new Random(idxSettings.getValue(OpenSearchIntegTestCase.INDEX_TEST_SEED_SETTING));
         return wrap(randomDirectoryService(random, idxSettings, path), random, indexSettings, path.getShardId());
+    }
+
+    @Override
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return new NIOFSDirectory(location, lockFactory);
     }
 
     public static void checkIndex(Logger logger, Store store, ShardId shardId) {
@@ -180,6 +190,23 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
             .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
         return new FsDirectoryFactory().newDirectory(newIndexSettings, path);
+    }
+
+    private Directory randomFSDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
+        final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
+            .settings(
+                Settings.builder()
+                    // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
+                    // secure settings that should not be copied in here since the new IndexSettings ctor below will barf if we do
+                    .put(indexSettings.getIndexMetadata().getSettings())
+                    .put(
+                        IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+                        RandomPicks.randomFrom(random, FILE_SYSTEM_BASED_STORE_TYPES).getSettingsKey()
+                    )
+            )
+            .build();
+        final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
+        return new FsDirectoryFactory().newFSDirectory(path.resolveIndex(), newIndexSettings.getValue(INDEX_LOCK_FACTOR_SETTING), newIndexSettings);
     }
 
     public static final class OpenSearchMockDirectoryWrapper extends MockDirectoryWrapper {

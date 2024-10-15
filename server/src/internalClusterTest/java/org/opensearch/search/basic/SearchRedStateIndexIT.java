@@ -34,6 +34,7 @@ package org.opensearch.search.basic;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.IOUtils;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -48,6 +49,12 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -73,6 +80,19 @@ public class SearchRedStateIndexIT extends ParameterizedStaticSettingsOpenSearch
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
     }
+
+//    public void testDirectory() throws Exception {
+//        Path lockDir = Paths. get("/Users/rissag/OpenSearch/OpenSearch/server/build/testrun/internalClusterTest/temp/test");
+//        Files.createDirectories(lockDir);
+//        Path lockFile = lockDir.resolve("write.lock");
+//        Files.createFile(lockFile);
+//        final Path realPath = lockFile.toRealPath();
+//        try(FileChannel channel = FileChannel.open(realPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+//            FileLock lock = channel.tryLock();) {
+//            assert lock != null;
+//            assert channel != null;
+//        }
+//    }
 
     public void testAllowPartialsWithRedState() throws Exception {
         final int numShards = cluster().numDataNodes() + 2;
@@ -144,7 +164,7 @@ public class SearchRedStateIndexIT extends ParameterizedStaticSettingsOpenSearch
         );
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
+            client().prepareIndex("test").setId("" + i).setSource("field1", "value1").setSource("status", "400").get();
         }
         refresh();
         indexRandomForConcurrentSearch("test");

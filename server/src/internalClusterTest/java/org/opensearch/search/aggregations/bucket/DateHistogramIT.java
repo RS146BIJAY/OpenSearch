@@ -131,6 +131,7 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
                 jsonBuilder().startObject()
                     .timeField("date", date)
                     .field("value", value)
+                    .field("status", "400")
                     .startArray("dates")
                     .timeValue(date)
                     .timeValue(date.plusMonths(1).plusDays(1))
@@ -145,6 +146,7 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
                 jsonBuilder().startObject()
                     .field("value", value)
                     .field("constant", 1)
+                    .field("status", "400")
                     .timeField("date", date(month, day))
                     .startArray("dates")
                     .timeValue(date(month, day))
@@ -164,7 +166,7 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
             builders.add(
                 client().prepareIndex("empty_bucket_idx")
                     .setId("" + i)
-                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).field("status", "400").endObject())
             );
         }
 

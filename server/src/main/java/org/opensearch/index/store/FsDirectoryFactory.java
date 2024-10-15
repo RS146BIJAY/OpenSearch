@@ -32,6 +32,7 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.index.CriteriaBasedCompositeDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
@@ -54,7 +55,9 @@ import org.opensearch.plugins.IndexStorePlugin;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -83,7 +86,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return newFSDirectory(location, lockFactory, indexSettings);
     }
 
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         final String storeType = indexSettings.getSettings()
             .get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
@@ -110,6 +113,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
+//                Directory multiTenantDirectory = new NIOFSDirectory(location, lockFactory);
+//                Map<String, Directory> criteriaDirectoryMapping = new HashMap<>();
+//                criteriaDirectoryMapping.put("400", new NIOFSDirectory(location.resolve("400"), lockFactory));
+//                criteriaDirectoryMapping.put("200", new NIOFSDirectory(location.resolve("200"), lockFactory));
+//                return new CriteriaBasedCompositeDirectory(multiTenantDirectory,criteriaDirectoryMapping);
             default:
                 throw new AssertionError("unexpected built-in store type [" + type + "]");
         }

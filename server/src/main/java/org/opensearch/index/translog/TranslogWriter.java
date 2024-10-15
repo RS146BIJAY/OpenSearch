@@ -189,6 +189,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
             header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
+            System.out.println("Translog UUID (From TranslogWriter create): " + translogUUID);
             TranslogCheckedContainer translogCheckedContainer = null;
             if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();

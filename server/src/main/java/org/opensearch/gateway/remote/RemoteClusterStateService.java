@@ -961,6 +961,8 @@ public class RemoteClusterStateService implements Closeable {
             previousManifest.getClusterStateCustomMap()
         );
 
+        System.out.println("Received cluster state in response " + clusterState);
+
         RemoteClusterStateManifestInfo committedManifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,
