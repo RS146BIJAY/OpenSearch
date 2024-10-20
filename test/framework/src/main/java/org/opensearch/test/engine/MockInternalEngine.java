@@ -32,6 +32,8 @@
 package org.opensearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
@@ -97,7 +99,7 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return super.acquireSearcherSupplier(wrapper.andThen(s -> support().wrapSearcher(s)), scope);
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope, ReferenceManager<OpenSearchDirectoryReader> referenceManager) throws EngineException {
+        return super.acquireSearcherSupplier(wrapper.andThen(s -> support().wrapSearcher(s)), scope, referenceManager);
     }
 }

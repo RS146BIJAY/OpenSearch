@@ -1910,7 +1910,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, null);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -4691,14 +4691,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Primary shards push out new segments only
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
+     *
+     * TODO: Remove this.
      */
     public final boolean isSearchIdleSupported() {
         // If the index is remote store backed, then search idle is not supported. This is to ensure that async refresh
         // task continues to upload to remote store periodically.
-        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode()) {
-            return false;
-        }
-        return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
+//        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode()) {
+//            return false;
+//        }
+//        return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
+
+        return false;
     }
 
     /**

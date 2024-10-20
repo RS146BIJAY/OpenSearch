@@ -203,6 +203,10 @@ public class InternalEngine extends Engine {
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
+    // This is required to prevent cyclic dependency between reader refresh and parentIndexWriter update.
+    // We are updating parent indexwriter on refresh and we are performing refresh when there is update.
+    private final List<ReferenceManager<OpenSearchDirectoryReader>> groupLevelExternalReaderManagers = new ArrayList<>();
+
     /**
      * If multiple writes passed {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)} but they haven't adjusted
      * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case, we have to fail
@@ -328,7 +332,11 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig));
+            externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), parentIndexWriter);
+            for (IndexWriter groupLevelIndexWriter : criteriaBasedIndexWriters.values()) {
+                groupLevelExternalReaderManagers.add(createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), groupLevelIndexWriter));
+            }
+
             internalReaderManager = externalReaderManager.internalReaderManager;
             this.internalReaderManager = internalReaderManager;
             this.externalReaderManager = externalReaderManager;
@@ -360,10 +368,8 @@ public class InternalEngine extends Engine {
             success = true;
         } finally {
             if (success == false) {
-                for (OpenSearchConcurrentMergeScheduler scheduler: mergeSchedulerCriteriaMap.values()) {
-                    IOUtils.closeWhileHandlingException(writer, translogManagerRef, internalReaderManager, externalReaderManager, scheduler);
-                }
-
+                IOUtils.closeWhileHandlingException(writer, translogManagerRef, internalReaderManager, externalReaderManager);
+                IOUtils.closeWhileHandlingException(mergeSchedulerCriteriaMap.values());
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
                     store.decRef();
@@ -579,13 +585,13 @@ public class InternalEngine extends Engine {
         return flushingBytes;
     }
 
-    private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
+    private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener, IndexWriter internalIndexWriter) throws EngineException {
         boolean success = false;
         OpenSearchReaderManager internalReaderManager = null;
         try {
             try {
                 final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
-                    DirectoryReader.open(parentIndexWriter),
+                    DirectoryReader.open(internalIndexWriter),
                     shardId
                 );
                 internalReaderManager = new OpenSearchReaderManager(directoryReader);
@@ -596,10 +602,10 @@ public class InternalEngine extends Engine {
             } catch (IOException e) {
                 maybeFailEngine("start", e);
                 try {
-                    parentIndexWriter.rollback();
-                    for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-                        indexWriter.rollback();
-                    }
+                    internalIndexWriter.rollback();
+//                    for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+//                        indexWriter.rollback();
+//                    }
                 } catch (IOException inner) { // iw is closed below
                     e.addSuppressed(inner);
                 }
@@ -607,10 +613,8 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(internalReaderManager, parentIndexWriter);
-                for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-                    IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
-                }
+                IOUtils.closeWhileHandlingException(internalReaderManager, internalIndexWriter);
+//                IOUtils.closeWhileHandlingException(criteriaBasedIndexWriters.values());
             }
         }
     }
@@ -1216,11 +1220,16 @@ public class InternalEngine extends Engine {
         while (docIt.hasNext()) {
             IndexableField field = docIt.next();
             if (field.stringValue() != null && field.name().equals("status")) {
-                return field.stringValue();
+                int statusCode = Integer.parseInt(field.stringValue())/100;
+                if (statusCode <= 3) {
+                    return "200";
+                } else {
+                    return "400";
+                }
             }
         }
 
-        return "0";
+        return "200";
     }
 
     private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
@@ -1834,16 +1843,26 @@ public class InternalEngine extends Engine {
                     SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
                     addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
                     addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
-                    parentIndexWriter.addIndexes(r1.getSegmentInfos(), r2.getSegmentInfos());
+                    System.out.println("Segment Infos for directory " + store.directory() +
+                        " state during refresh for 400: " + clientErrorLogSegmentInfos + " and 200: " + successLogSegmentInfos);
+                    parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(scope);
                     // it is intentional that we never refresh both internal / external together
+                    // Refresh both child and Parent ReaderManager together.
                     if (block) {
                         referenceManager.maybeRefreshBlocking();
+                        for (ReferenceManager<OpenSearchDirectoryReader> groupLevelExternalReaderManager: groupLevelExternalReaderManagers) {
+                            groupLevelExternalReaderManager.maybeRefreshBlocking();
+                        }
+
                         refreshed = true;
                     } else {
                         refreshed = referenceManager.maybeRefresh();
+                        for (ReferenceManager<OpenSearchDirectoryReader> groupLevelExternalReaderManager: groupLevelExternalReaderManagers) {
+                            groupLevelExternalReaderManager.maybeRefresh();
+                        }
                     }
                 } catch (Exception ex) {
                     throw new IOException("Failed refresh", ex);
@@ -1881,6 +1900,11 @@ public class InternalEngine extends Engine {
         }
 
         return refreshed;
+    }
+
+    @Override
+    protected List<ReferenceManager<OpenSearchDirectoryReader>> getChildLevelReferenceManagerList() {
+        return groupLevelExternalReaderManagers;
     }
 
     private void addPrefixToSegmentInfoAttribute(SegmentInfos infos, String prefix) {
@@ -2199,6 +2223,9 @@ public class InternalEngine extends Engine {
                 for (IndexWriter indexWriter:criteriaBasedIndexWriters.values()) {
                     indexWriter.deleteUnusedFiles();
                 }
+
+                // TODO Is it needed?
+                parentIndexWriter.deleteUnusedFiles();
             } catch (AlreadyClosedException ignored) {
                 // That's ok, we'll clean up unused files the next time it's opened.
             }
@@ -2398,6 +2425,7 @@ public class InternalEngine extends Engine {
                 }
                 try {
                     IOUtils.close(externalReaderManager, internalReaderManager);
+                    IOUtils.close(groupLevelExternalReaderManagers);
                 } catch (Exception e) {
                     logger.warn("Failed to close ReaderManager", e);
                 }
