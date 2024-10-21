@@ -790,6 +790,7 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
+    private volatile boolean isContextAwareEnabled;
     private final boolean isStoreLocalityPartial;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile String remoteStoreTranslogRepository;
@@ -994,6 +995,7 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isContextAwareEnabled = settings.getAsBoolean(IndexMetadata.SETTING_CONTEXT_AWARE_ENABLED, false);
         isStoreLocalityPartial = settings.get(
             IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(),
             IndexModule.DataLocalityType.FULL.toString()
@@ -1192,6 +1194,7 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
         scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_CONTEXT_AWARE_ENABLED_SETTING, this::setContextAwareEnabled);
         scopedSettings.addSettingsUpdateConsumer(
             IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
             this::setRemoteStoreRepository
@@ -1345,6 +1348,10 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isContextAwareEnabled() {
+        return isContextAwareEnabled;
     }
 
     public boolean isAssignedOnRemoteNode() {
@@ -2025,6 +2032,10 @@ public final class IndexSettings {
 
     public void setRemoteStoreEnabled(boolean isRemoteStoreEnabled) {
         this.isRemoteStoreEnabled = isRemoteStoreEnabled;
+    }
+
+    public void setContextAwareEnabled(boolean contextAwareEnabled) {
+        isContextAwareEnabled = contextAwareEnabled;
     }
 
     public void setRemoteStoreRepository(String remoteStoreRepository) {

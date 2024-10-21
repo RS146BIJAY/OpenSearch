@@ -154,7 +154,8 @@ public class EngineConfigFactory {
         boolean isReadOnlyReplica,
         BooleanSupplier startedPrimarySupplier,
         TranslogFactory translogFactory,
-        Comparator<LeafReader> leafSorter
+        Comparator<LeafReader> leafSorter,
+        boolean isContextAwareEnabled
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -188,6 +189,7 @@ public class EngineConfigFactory {
             .startedPrimarySupplier(startedPrimarySupplier)
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
+            .isContextAwareEnabled(isContextAwareEnabled)
             .build();
     }
 

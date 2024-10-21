@@ -256,6 +256,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
                 IndexSettings.INDEX_CONTEXT_CURRENT_VERSION,
 
+                IndexMetadata.INDEX_CONTEXT_AWARE_ENABLED_SETTING,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

@@ -4027,6 +4027,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica = false;
         }
 
+        boolean isContextAwareEnabled = indexSettings.isContextAwareEnabled();
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
@@ -4053,8 +4054,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica,
             this::enableUploadToRemoteTranslog,
             translogFactorySupplier.apply(indexSettings, shardRouting),
-            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
-            // timeseries
+            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
+            // timeseries,
+            isContextAwareEnabled
         );
     }
 

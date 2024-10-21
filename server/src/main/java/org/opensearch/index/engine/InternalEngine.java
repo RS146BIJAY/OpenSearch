@@ -261,8 +261,11 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeSchedulerCriteriaMap.put("200", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "200"));
-            mergeSchedulerCriteriaMap.put("400", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "400"));
+            if (engineConfig.isContextAwareEnabled()) {
+                mergeSchedulerCriteriaMap.put("200", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "200"));
+                mergeSchedulerCriteriaMap.put("400", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "400"));
+            }
+
             mergeSchedulerCriteriaMap.put("-1", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "-1"));
             throttle = new IndexThrottle();
             try {
@@ -314,7 +317,10 @@ public class InternalEngine extends Engine {
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 criteriaBasedIndexWriters = new HashMap<>();
-                populateCriteriaIndexWriters();
+                if (engineConfig.isContextAwareEnabled()) {
+                    populateCriteriaIndexWriters();
+                }
+
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
                 final Map<String, String> commitData = commitDataAsMap(writer);
@@ -333,8 +339,10 @@ public class InternalEngine extends Engine {
                 }
             }
             externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), parentIndexWriter);
-            for (IndexWriter groupLevelIndexWriter : criteriaBasedIndexWriters.values()) {
-                groupLevelExternalReaderManagers.add(createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), groupLevelIndexWriter));
+            if (engineConfig.isContextAwareEnabled()) {
+                for (IndexWriter groupLevelIndexWriter : criteriaBasedIndexWriters.values()) {
+                    groupLevelExternalReaderManagers.add(createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), groupLevelIndexWriter));
+                }
             }
 
             internalReaderManager = externalReaderManager.internalReaderManager;
@@ -547,16 +555,21 @@ public class InternalEngine extends Engine {
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() {
-        criteriaBasedIndexWriters.values().forEach(indexWriter -> {
-            try {
-                if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-                    indexWriter.deleteUnusedFiles();
+        try {
+            if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+                if (config().isContextAwareEnabled()) {
+                    for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
+                        indexWriter.deleteUnusedFiles();
+                    }
+                } else {
+                    parentIndexWriter.deleteUnusedFiles();
                 }
-                translogManager.trimUnreferencedReaders();
-            } catch (IOException ex) {
-                throw new TranslogException(shardId, "Failed to execute index deletion policy on translog synced", ex);
             }
-        });
+
+            translogManager.trimUnreferencedReaders();
+        } catch (IOException ex) {
+            throw new TranslogException(shardId, "Failed to execute index deletion policy on translog synced", ex);
+        }
     }
 
     @Override
@@ -578,8 +591,12 @@ public class InternalEngine extends Engine {
 
     private long getFlushingBytes() {
         long flushingBytes = 0;
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            flushingBytes += indexWriter.getFlushingBytes();
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                flushingBytes += indexWriter.getFlushingBytes();
+            }
+        } else {
+            flushingBytes = parentIndexWriter.getFlushingBytes();
         }
 
         return flushingBytes;
@@ -1147,15 +1164,23 @@ public class InternalEngine extends Engine {
         index.parsedDoc().updateSeqID(index.seqNo(), index.primaryTerm());
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
+            IndexWriter currentIndexWriter;
+            String criteria = getGroupingCriteriaForDoc(index.docs());
+            if (criteria.equals("0")) {
+                currentIndexWriter = parentIndexWriter;
+            } else {
+                currentIndexWriter = criteriaBasedIndexWriters.get(criteria);
+            }
+
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), criteriaBasedIndexWriters.get(getGroupingCriteriaForDoc(index.docs())));
+                addStaleDocs(index.docs(), currentIndexWriter);
             } else if (plan.useLuceneUpdateDocument) {
                 assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
-                updateDocs(index.uid(), index.docs(), criteriaBasedIndexWriters.get(getGroupingCriteriaForDoc(index.docs())));
+                updateDocs(index.uid(), index.docs(), currentIndexWriter);
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
-                addDocs(index.docs(), criteriaBasedIndexWriters.get(getGroupingCriteriaForDoc(index.docs())));
+                addDocs(index.docs(), currentIndexWriter);
             }
             return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
@@ -1229,7 +1254,7 @@ public class InternalEngine extends Engine {
             }
         }
 
-        return "200";
+        return "0";
     }
 
     private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
@@ -1471,8 +1496,12 @@ public class InternalEngine extends Engine {
 
     private long getPendingNumDocs() {
         long pendingNumDocsCount = 0;
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            pendingNumDocsCount += indexWriter.getPendingNumDocs();
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                pendingNumDocsCount += indexWriter.getPendingNumDocs();
+            }
+        } else {
+            pendingNumDocsCount = parentIndexWriter.getPendingNumDocs();
         }
 
         return pendingNumDocsCount;
@@ -1602,15 +1631,22 @@ public class InternalEngine extends Engine {
                 + " ]";
             doc.add(softDeletesField);
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
-                for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-                    indexWriter.addDocument(doc);
+                if (config().isContextAwareEnabled()) {
+                    for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                        indexWriter.addDocument(doc);
+                    }
+                } else {
+                    parentIndexWriter.addDocument(doc);
                 }
 //                criteriaBasedIndexWriters.get(getGroupingCriteriaForDoc(List.of(doc))).addDocument(doc);
             } else {
-                for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
+                if (config().isContextAwareEnabled()) {
+                    for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                        indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
+                    }
+                } else {
+                    parentIndexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
                 }
-
 //                criteriaBasedIndexWriters.get(getGroupingCriteriaForDoc(List.of(doc))).softUpdateDocument(delete.uid(), doc, softDeletesField);
             }
             return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
@@ -1634,13 +1670,17 @@ public class InternalEngine extends Engine {
     }
 
     private boolean isNotAssociatedTragicException() {
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            if (indexWriter.getTragicException() != null) {
-                return false;
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                if (indexWriter.getTragicException() != null) {
+                    return false;
+                }
             }
-        }
 
-        return true;
+            return true;
+        } else {
+            return parentIndexWriter.getTragicException() != null;
+        }
     }
 
     /**
@@ -1836,16 +1876,22 @@ public class InternalEngine extends Engine {
         try {
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
+                StandardDirectoryReader r1 = null;
+                StandardDirectoryReader r2 = null;
+
                 // increment the ref just to ensure nobody closes the store during a refresh
-                try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
-                     StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"))) {
-                    SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
-                    SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
-                    addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
-                    addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
-                    System.out.println("Segment Infos for directory " + store.directory() +
-                        " state during refresh for 400: " + clientErrorLogSegmentInfos + " and 200: " + successLogSegmentInfos);
-                    parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
+                try {
+                    if (config().isContextAwareEnabled()) {
+                        r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
+                        r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
+                        SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
+                        SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
+                        addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
+                        addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
+                        System.out.println("Segment Infos for directory " + store.directory() +
+                            " state during refresh for 400: " + clientErrorLogSegmentInfos + " and 200: " + successLogSegmentInfos);
+                        parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
+                    }
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(scope);
@@ -1867,6 +1913,13 @@ public class InternalEngine extends Engine {
                 } catch (Exception ex) {
                     throw new IOException("Failed refresh", ex);
                 } finally {
+                    if (r1 != null) {
+                        r1.close();
+                    }
+
+                    if (r2 != null) {
+                        r2.close();
+                    }
                     store.decRef();
                 }
                 if (refreshed) {
@@ -1978,10 +2031,14 @@ public class InternalEngine extends Engine {
                         final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode()
                             ? acquireLastIndexCommit(false)
                             : null;
-                        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-                            if (indexWriter.hasUncommittedChanges()) {
-                                commitIndexWriter(indexWriter, translogManager.getTranslogUUID());
+                        if (config().isContextAwareEnabled()) {
+                            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                                if (indexWriter.hasUncommittedChanges()) {
+                                    commitIndexWriter(indexWriter, translogManager.getTranslogUUID());
+                                }
                             }
+                        } else {
+                            commitIndexWriter(parentIndexWriter, translogManager.getTranslogUUID());
                         }
 
                         // Do not do this to avoid negative pendingNumDocs.
@@ -2029,13 +2086,17 @@ public class InternalEngine extends Engine {
     }
 
     private boolean hasUncommittedChanges() {
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            if (indexWriter.hasUncommittedChanges()) {
-                return true;
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                if (indexWriter.hasUncommittedChanges()) {
+                    return true;
+                }
             }
-        }
 
-        return false;
+            return false;
+        } else {
+            return parentIndexWriter.hasUncommittedChanges();
+        }
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2113,8 +2174,13 @@ public class InternalEngine extends Engine {
         final boolean upgradeOnlyAncientSegments,
         final String forceMergeUUID
     ) throws EngineException, IOException {
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            forceMergeUtil(indexWriter, flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments,
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                forceMergeUtil(indexWriter, flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments,
+                    forceMergeUUID);
+            }
+        } else {
+            forceMergeUtil(parentIndexWriter, flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments,
                 forceMergeUUID);
         }
     }
@@ -2220,8 +2286,10 @@ public class InternalEngine extends Engine {
             try {
                 // Here we don't have to trim translog because snapshotting an index commit
                 // does not lock translog or prevents unreferenced files from trimming.
-                for (IndexWriter indexWriter:criteriaBasedIndexWriters.values()) {
-                    indexWriter.deleteUnusedFiles();
+                if (config().isContextAwareEnabled()) {
+                    for (IndexWriter indexWriter:criteriaBasedIndexWriters.values()) {
+                        indexWriter.deleteUnusedFiles();
+                    }
                 }
 
                 // TODO Is it needed?
@@ -2292,9 +2360,15 @@ public class InternalEngine extends Engine {
     }
 
     private Throwable getTragicException() {
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-                return indexWriter.getTragicException();
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
+                    return indexWriter.getTragicException();
+                }
+            }
+        } else {
+            if (parentIndexWriter.isOpen() == false && parentIndexWriter.getTragicException() != null) {
+                return parentIndexWriter.getTragicException();
             }
         }
 
@@ -2373,8 +2447,12 @@ public class InternalEngine extends Engine {
 
     private long getRamBytesUsed() {
         long ramBytesUsed = 0;
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            ramBytesUsed += indexWriter.ramBytesUsed();
+        if (config().isContextAwareEnabled()) {
+            for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                ramBytesUsed += indexWriter.ramBytesUsed();
+            }
+        } else {
+            ramBytesUsed = parentIndexWriter.ramBytesUsed();
         }
 
         return ramBytesUsed;
@@ -2445,10 +2523,12 @@ public class InternalEngine extends Engine {
                     }
                 }
 
-                // TODO: This is needed to keep pending num docs in sync.
-                try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
-                     StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"))) {
-                    parentIndexWriter.addIndexes(r1.getSegmentInfos(), r2.getSegmentInfos());
+                if (config().isContextAwareEnabled()) {
+                    // TODO: This is needed to keep pending num docs in sync.
+                    try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
+                         StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"))) {
+                        parentIndexWriter.addIndexes(r1.getSegmentInfos(), r2.getSegmentInfos());
+                    }
                 }
 
                 parentIndexWriter.rollback();
@@ -2640,7 +2720,7 @@ public class InternalEngine extends Engine {
     }
 
     LiveIndexWriterConfig getCurrentIndexWriterConfig() {
-        return criteriaBasedIndexWriters.get("200").getConfig();
+        return parentIndexWriter.getConfig();
     }
 
     private final class EngineMergeScheduler extends OpenSearchConcurrentMergeScheduler {
