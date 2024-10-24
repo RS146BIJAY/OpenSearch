@@ -123,6 +123,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             safeCommit = this.safeCommit;
         }
 
+        System.out.println("Local checkpoint set for safe commit " + safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
         safeCommitInfo = new SafeCommitInfo(
             Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
@@ -152,6 +153,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
         final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        System.out.println("Local checkpoint set for safe commit inside updateRetentionPolicy " + localCheckpointOfSafeCommit);
         softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
     }

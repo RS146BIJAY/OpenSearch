@@ -221,7 +221,7 @@ public class SoftDeletesPolicyTests extends OpenSearchTestCase {
             version,
             Collections.unmodifiableCollection(new ArrayList<>(leases))
         );
-        final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
+        final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get,0, retentionOperations, leasesSupplier);
         policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minimumRetainingSequenceNumber.getAsLong()));
     }

@@ -43,6 +43,7 @@ import org.opensearch.index.translog.Translog;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -53,27 +54,27 @@ import java.util.function.Supplier;
  */
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
-    private long localCheckpointOfSafeCommit;
+    private AtomicLong localCheckpointOfSafeCommit;
     // This lock count is used to prevent `minRetainedSeqNo` from advancing.
     private int retentionLockCount;
     // The extra number of operations before the global checkpoint are retained
     private long retentionOperations;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
-    private long minRetainedSeqNo;
+    private AtomicLong minRetainedSeqNo;
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
     SoftDeletesPolicy(
         final LongSupplier globalCheckpointSupplier,
-        final long minRetainedSeqNo,
+        final long lastMinRetainedSeqNo,
         final long retentionOperations,
         final Supplier<RetentionLeases> retentionLeasesSupplier
     ) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
-        this.minRetainedSeqNo = minRetainedSeqNo;
+        this.minRetainedSeqNo = new AtomicLong(lastMinRetainedSeqNo);
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
-        this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
+        this.localCheckpointOfSafeCommit = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         this.retentionLockCount = 0;
     }
 
@@ -86,21 +87,25 @@ final class SoftDeletesPolicy {
     }
 
     /**
-     * Sets the local checkpoint of the current safe commit
+     * Sets the local checkpoint of the current safe commit. This can be different for different IndexWriter.
+     * TODO: With multiple IndexWriter LocalCheckPointOfSafeCommit can go backward as well. Can removing assertions here
+     * cause issues??
      */
     synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
-        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException(
-                "Local checkpoint can't go backwards; "
-                    + "new checkpoint ["
-                    + newCheckpoint
-                    + "],"
-                    + "current checkpoint ["
-                    + localCheckpointOfSafeCommit
-                    + "]"
-            );
-        }
-        this.localCheckpointOfSafeCommit = newCheckpoint;
+//        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+//            throw new IllegalArgumentException(
+//                "Local checkpoint can't go backwards; "
+//                    + "new checkpoint ["
+//                    + newCheckpoint
+//                    + "],"
+//                    + "current checkpoint ["
+//                    + localCheckpointOfSafeCommit
+//                    + "]"
+//            );
+//        }
+
+        // Consider maximum value of localCheckpointOfSafeCommits across group level IndexWriters.
+        this.localCheckpointOfSafeCommit.set(Math.max(newCheckpoint, localCheckpointOfSafeCommit.get()));
     }
 
     /**
@@ -162,15 +167,16 @@ final class SoftDeletesPolicy {
                 1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
                 minimumRetainingSequenceNumber
             );
-            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
+            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit.get());
 
             /*
              * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
              * the addition of leases with a retaining sequence number lower than previous retaining sequence numbers.
              */
-            minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
+
+            minRetainedSeqNo.set(Math.max(minRetainedSeqNo.get(), minSeqNoToRetain));
         }
-        return minRetainedSeqNo;
+        return minRetainedSeqNo.get();
     }
 
     /**

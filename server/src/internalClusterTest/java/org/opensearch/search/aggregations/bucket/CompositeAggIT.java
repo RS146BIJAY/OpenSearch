@@ -55,6 +55,7 @@ public class CompositeAggIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
+                    .put(IndexMetadata.SETTING_CONTEXT_AWARE_ENABLED, true)
             ).setMapping("type", "type=keyword", "num", "type=integer", "score", "type=integer")
         );
         waitForRelocation(ClusterHealthStatus.GREEN);

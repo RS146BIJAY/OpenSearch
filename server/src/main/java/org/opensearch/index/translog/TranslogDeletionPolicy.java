@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Defines a translog deletion policy
@@ -68,7 +69,7 @@ public abstract class TranslogDeletionPolicy {
      * translog generation
      */
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
-    private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
+    private final AtomicLong localCheckpointOfSafeCommit = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
     public TranslogDeletionPolicy() {
         if (Assertions.ENABLED) {
@@ -79,17 +80,17 @@ public abstract class TranslogDeletionPolicy {
     }
 
     public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
-        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException(
-                "local checkpoint of the safe commit can't go backwards: "
-                    + "current ["
-                    + this.localCheckpointOfSafeCommit
-                    + "] new ["
-                    + newCheckpoint
-                    + "]"
-            );
-        }
-        this.localCheckpointOfSafeCommit = newCheckpoint;
+//        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+//            throw new IllegalArgumentException(
+//                "local checkpoint of the safe commit can't go backwards: "
+//                    + "current ["
+//                    + this.localCheckpointOfSafeCommit
+//                    + "] new ["
+//                    + newCheckpoint
+//                    + "]"
+//            );
+//        }
+        this.localCheckpointOfSafeCommit.set(Math.max(newCheckpoint, localCheckpointOfSafeCommit.get()));
     }
 
     public abstract void setRetentionSizeInBytes(long bytes);
@@ -204,7 +205,7 @@ public abstract class TranslogDeletionPolicy {
      * Returns the local checkpoint of the safe commit. This value is used to calculate the min required generation for recovery.
      */
     public synchronized long getLocalCheckpointOfSafeCommit() {
-        return localCheckpointOfSafeCommit;
+        return localCheckpointOfSafeCommit.get();
     }
 
     synchronized long getTranslogRefCount(long gen) {
