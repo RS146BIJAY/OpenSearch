@@ -2044,7 +2044,11 @@ public class InternalEngine extends Engine {
 
                             try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
                                  StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"))) {
-                                parentIndexWriter.addIndexes(r1.getSegmentInfos(), r2.getSegmentInfos());
+                                SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
+                                SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
+                                addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
+                                addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
+                                parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
                             }
                             final Map<String, String> userData = getParentCommitData(translogManager.getTranslogUUID());
                             SegmentInfos latestSegmentInfos = parentIndexWriter.getSegmentInfos();
