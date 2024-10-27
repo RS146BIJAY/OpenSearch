@@ -102,6 +102,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -839,7 +840,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected abstract ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope);
 
     // TODO: Overrride this in InternalEngine
-    protected List<ReferenceManager<OpenSearchDirectoryReader>> getChildLevelReferenceManagerList() {
+    protected Collection<ReferenceManager<OpenSearchDirectoryReader>> getChildLevelReferenceManagerList() {
         return null;
     }
 
@@ -1166,7 +1167,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
               the store is closed so we need to make sure we increment it here
              */
 
-            List<ReferenceManager<OpenSearchDirectoryReader>> childDirectoryReaderReferenceList = getChildLevelReferenceManagerList();
+            Collection<ReferenceManager<OpenSearchDirectoryReader>> childDirectoryReaderReferenceList = getChildLevelReferenceManagerList();
             try {
 
                 // For regular scenario.

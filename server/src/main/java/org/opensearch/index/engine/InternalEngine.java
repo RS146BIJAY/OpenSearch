@@ -156,6 +156,7 @@ public class InternalEngine extends Engine {
 
     private final InternalTranslogManager translogManager;
     private final Map<String, OpenSearchConcurrentMergeScheduler> mergeSchedulerCriteriaMap = new HashMap<>();
+    private final Map<String, CombinedDeletionPolicy> childLevelCombinedDeletionPolicyMap = new HashMap<>();
 
     private final IndexWriter parentIndexWriter;
 
@@ -198,8 +199,7 @@ public class InternalEngine extends Engine {
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     private final CompletionStatsCache completionStatsCache;
-    private final Map<String, IndexWriter> criteriaBasedIndexWriters;
-
+    private final Map<String, IndexWriter> criteriaBasedIndexWriters = new HashMap<>();
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
@@ -229,6 +229,8 @@ public class InternalEngine extends Engine {
      */
     @Nullable
     private volatile String forceMergeUUID;
+    private StandardDirectoryReader prev200 = null;
+    private StandardDirectoryReader prev400 = null;
 
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
@@ -317,8 +319,9 @@ public class InternalEngine extends Engine {
                     softDeletesPolicy,
                     translogManager::getLastSyncedGlobalCheckpoint
                 );
+
+                populateCombinedDeletionPolicy();
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-                criteriaBasedIndexWriters = new HashMap<>();
                 if (engineConfig.isContextAwareEnabled()) {
                     populateCriteriaIndexWriters();
                 }
@@ -387,6 +390,22 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    private void populateCombinedDeletionPolicy() {
+        childLevelCombinedDeletionPolicyMap.put("200", new CombinedDeletionPolicy(
+            logger,
+            translogDeletionPolicy,
+            softDeletesPolicy,
+            translogManager::getLastSyncedGlobalCheckpoint
+        ));
+
+        childLevelCombinedDeletionPolicyMap.put("400", new CombinedDeletionPolicy(
+            logger,
+            translogDeletionPolicy,
+            softDeletesPolicy,
+            translogManager::getLastSyncedGlobalCheckpoint
+        ));
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -1879,14 +1898,22 @@ public class InternalEngine extends Engine {
         try {
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
-                StandardDirectoryReader r1 = null;
-                StandardDirectoryReader r2 = null;
 
                 // increment the ref just to ensure nobody closes the store during a refresh
                 try {
                     if (config().isContextAwareEnabled()) {
-                        r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
-                        r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
+                        if (prev200 != null) {
+                            prev200.close();
+                        }
+
+                        if (prev400 != null) {
+                            prev400.close();
+                        }
+
+                        StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
+                        StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
+                        prev200 = r1;
+                        prev400 = r2;
                         SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
                         SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
                         addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
@@ -1917,13 +1944,13 @@ public class InternalEngine extends Engine {
                 } catch (Exception ex) {
                     throw new IOException("Failed refresh", ex);
                 } finally {
-                    if (r1 != null) {
-                        r1.close();
-                    }
-
-                    if (r2 != null) {
-                        r2.close();
-                    }
+//                    if (r1 != null) {
+//                        r1.close();
+//                    }
+//
+//                    if (r2 != null) {
+//                        r2.close();
+//                    }
                     store.decRef();
                 }
                 if (refreshed) {
@@ -2042,14 +2069,23 @@ public class InternalEngine extends Engine {
                                 }
                             }
 
-                            try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
-                                 StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"))) {
-                                SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
-                                SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
-                                addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
-                                addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
-                                parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
+                            if (prev200 != null) {
+                                prev200.close();
                             }
+
+                            if (prev400 != null) {
+                                prev400.close();
+                            }
+
+                            StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
+                            StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
+                            prev200 = r1;
+                            prev400 = r2;
+                            SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
+                            SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
+                            addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
+                            addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
+                            parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
                             final Map<String, String> userData = getParentCommitData(translogManager.getTranslogUUID());
                             SegmentInfos latestSegmentInfos = parentIndexWriter.getSegmentInfos();
                             latestSegmentInfos.setUserData(userData, true);
@@ -2449,6 +2485,22 @@ public class InternalEngine extends Engine {
         }
     }
 
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot(OpenSearchReaderManager internalReaderManager) {
+        final OpenSearchDirectoryReader reader;
+        try {
+            reader = internalReaderManager.acquire();
+            return new GatedCloseable<>(((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos(), () -> {
+                try {
+                    internalReaderManager.release(reader);
+                } catch (AlreadyClosedException e) {
+                    logger.warn("Engine is already closed.", e);
+                }
+            });
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
+    }
+
     @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
@@ -2514,6 +2566,14 @@ public class InternalEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                if (prev200 != null) {
+                    prev200.close();
+                }
+
+                if (prev400 != null) {
+                    prev400.close();
+                }
+
                 this.versionMap.clear();
                 if (internalReaderManager != null) {
                     internalReaderManager.removeListener(versionMap);
@@ -2587,9 +2647,9 @@ public class InternalEngine extends Engine {
     private void populateCriteriaIndexWriters() throws IOException {
         AtomicLong globalSeqNo = new AtomicLong(1);
         this.criteriaBasedIndexWriters.put("200", createWriter(store.getDirectoryMapping().get("200"),
-            getIndexWriterConfig(mergeSchedulerCriteriaMap.get("200"), globalSeqNo)));
+            getIndexWriterConfig("200", globalSeqNo)));
         this.criteriaBasedIndexWriters.put("400", createWriter(store.getDirectoryMapping().get("400"),
-            getIndexWriterConfig(mergeSchedulerCriteriaMap.get("400"), globalSeqNo)));
+            getIndexWriterConfig("400", globalSeqNo)));
     }
 
     private IndexWriter createWriter() throws IOException {
@@ -2612,14 +2672,9 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriterConfig getIndexWriterConfig(OpenSearchConcurrentMergeScheduler mergeScheduler, AtomicLong seqNo) throws IOException {
-        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(
-            logger,
-            translogDeletionPolicy,
-            softDeletesPolicy,
-            translogManager::getLastSyncedGlobalCheckpoint
-        );
-
+    private IndexWriterConfig getIndexWriterConfig(String criteria, AtomicLong seqNo) {
+        OpenSearchConcurrentMergeScheduler mergeScheduler = mergeSchedulerCriteriaMap.get(criteria);
+        CombinedDeletionPolicy combinedDeletionPolicy = childLevelCombinedDeletionPolicyMap.get(criteria);
         return getIndexWriterConfig(mergeScheduler, seqNo, combinedDeletionPolicy);
     }
 
