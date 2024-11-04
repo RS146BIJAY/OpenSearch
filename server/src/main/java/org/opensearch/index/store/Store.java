@@ -1909,7 +1909,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
 
-            System.out.println("Translog UUID (SegmentInfos): " + translogUUID + " for path " + shardPath.getDataPath().toString());
+//            System.out.println("Translog UUID (SegmentInfos): " + translogUUID + " for path " + shardPath.getDataPath().toString());
             updateCommitData(writer, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
             if (indexSettings.isContextAwareEnabled()) {
                 updateCommitData(w2, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
@@ -2058,7 +2058,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
-        System.out.println("Path for IndexWriter inside newEmptyIndexWriter inside Store: " + dir);
+//        System.out.println("Path for IndexWriter inside newEmptyIndexWriter inside Store: " + dir);
         IndexWriterConfig iwc = newIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(luceneVersion.major);
         return new IndexWriter(dir, iwc);

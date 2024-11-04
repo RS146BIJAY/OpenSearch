@@ -236,7 +236,7 @@ public final class TranslogHeader {
         // Write uuid
         final BytesRef uuid = new BytesRef(translogUUID);
         out.writeInt(uuid.length);
-        System.out.println("Translog UUID (From TranslogHeader write without path): " + translogUUID);
+//        System.out.println("Translog UUID (From TranslogHeader write without path): " + translogUUID);
         out.writeBytes(uuid.bytes, uuid.offset, uuid.length);
         // Write primary term
         out.writeLong(primaryTerm);
@@ -255,7 +255,7 @@ public final class TranslogHeader {
         final BytesRef uuid = new BytesRef(translogUUID);
         out.writeInt(uuid.length);
         out.writeBytes(uuid.bytes, uuid.offset, uuid.length);
-        System.out.println("Translog UUID (From TranslogHeader write): " + translogUUID + " for path " + channel);
+//        System.out.println("Translog UUID (From TranslogHeader write): " + translogUUID + " for path " + channel);
         // Write primary term
         out.writeLong(primaryTerm);
         // Checksum header

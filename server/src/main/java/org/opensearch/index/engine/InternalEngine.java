@@ -46,7 +46,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -137,7 +136,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -176,7 +174,7 @@ public class InternalEngine extends Engine {
 
     private final LocalCheckpointTracker localCheckpointTracker;
 
-    private final CombinedDeletionPolicy combinedDeletionPolicy;
+    private final CombinedDeletionPolicy parentIndexWriterCombinedDeletionPolicy;
 
     // How many callers are currently requesting index throttling. Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
@@ -229,8 +227,8 @@ public class InternalEngine extends Engine {
      */
     @Nullable
     private volatile String forceMergeUUID;
-    private StandardDirectoryReader prev200 = null;
-    private StandardDirectoryReader prev400 = null;
+    private SegmentInfos prev200 = null;
+    private SegmentInfos prev400 = null;
 
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
@@ -313,19 +311,19 @@ public class InternalEngine extends Engine {
                 );
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(
-                    logger,
-                    translogDeletionPolicy,
-                    softDeletesPolicy,
-                    translogManager::getLastSyncedGlobalCheckpoint
-                );
-
-                populateCombinedDeletionPolicy();
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+                populateChildLevelCombinedDeletionPolicy();
                 if (engineConfig.isContextAwareEnabled()) {
                     populateCriteriaIndexWriters();
                 }
 
+                this.parentIndexWriterCombinedDeletionPolicy = new CombinedDeletionPolicy(
+                    logger,
+                    translogDeletionPolicy,
+                    softDeletesPolicy,
+                    translogManager::getLastSyncedGlobalCheckpoint,
+                    criteriaBasedIndexWriters
+                );
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
                 final Map<String, String> commitData = commitDataAsMap(writer);
@@ -392,19 +390,21 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-    private void populateCombinedDeletionPolicy() {
+    private void populateChildLevelCombinedDeletionPolicy() {
         childLevelCombinedDeletionPolicyMap.put("200", new CombinedDeletionPolicy(
             logger,
             translogDeletionPolicy,
             softDeletesPolicy,
-            translogManager::getLastSyncedGlobalCheckpoint
+            translogManager::getLastSyncedGlobalCheckpoint,
+            null
         ));
 
         childLevelCombinedDeletionPolicyMap.put("400", new CombinedDeletionPolicy(
             logger,
             translogDeletionPolicy,
             softDeletesPolicy,
-            translogManager::getLastSyncedGlobalCheckpoint
+            translogManager::getLastSyncedGlobalCheckpoint,
+            null
         ));
     }
 
@@ -573,12 +573,12 @@ public class InternalEngine extends Engine {
 
     // Package private for testing purposes only
     boolean hasSnapshottedCommits() {
-        return combinedDeletionPolicy.hasSnapshottedCommits();
+        return parentIndexWriterCombinedDeletionPolicy.hasSnapshottedCommits();
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() {
         try {
-            if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+            if (parentIndexWriterCombinedDeletionPolicy.hasUnreferencedCommits()) {
                 if (config().isContextAwareEnabled()) {
                     for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
                         indexWriter.deleteUnusedFiles();
@@ -1903,23 +1903,25 @@ public class InternalEngine extends Engine {
                 try {
                     if (config().isContextAwareEnabled()) {
                         if (prev200 != null) {
-                            prev200.close();
+                            criteriaBasedIndexWriters.get("200").decRefDeleter(prev200);
                         }
 
                         if (prev400 != null) {
-                            prev400.close();
+                            criteriaBasedIndexWriters.get("400").decRefDeleter(prev400);
                         }
 
                         StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
                         StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
-                        prev200 = r1;
-                        prev400 = r2;
                         SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
                         SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
+                        criteriaBasedIndexWriters.get("200").incRefDeleter(successLogSegmentInfos);
+                        criteriaBasedIndexWriters.get("400").incRefDeleter(clientErrorLogSegmentInfos);
+                        prev200 = successLogSegmentInfos;
+                        prev400 = clientErrorLogSegmentInfos;
                         addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
                         addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
-                        System.out.println("Segment Infos for directory " + store.directory() +
-                            " state during refresh for 400: " + clientErrorLogSegmentInfos + " and 200: " + successLogSegmentInfos);
+//                        System.out.println("Segment Infos for directory " + store.directory() +
+//                            " state during refresh for 400: " + clientErrorLogSegmentInfos + " and 200: " + successLogSegmentInfos);
                         parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
                     }
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
@@ -2070,21 +2072,25 @@ public class InternalEngine extends Engine {
                             }
 
                             if (prev200 != null) {
-                                prev200.close();
+                                criteriaBasedIndexWriters.get("200").decRefDeleter(prev200);
                             }
 
                             if (prev400 != null) {
-                                prev400.close();
+                                criteriaBasedIndexWriters.get("400").decRefDeleter(prev400);
                             }
 
                             StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"));
                             StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
-                            prev200 = r1;
-                            prev400 = r2;
                             SegmentInfos clientErrorLogSegmentInfos = r1.getSegmentInfos();
                             SegmentInfos successLogSegmentInfos = r2.getSegmentInfos();
+                            criteriaBasedIndexWriters.get("400").incRefDeleter(clientErrorLogSegmentInfos);
+                            criteriaBasedIndexWriters.get("200").incRefDeleter(successLogSegmentInfos);
+                            prev200 = successLogSegmentInfos;
+                            prev400 = clientErrorLogSegmentInfos;
                             addPrefixToSegmentInfoAttribute(clientErrorLogSegmentInfos, "400");
                             addPrefixToSegmentInfoAttribute(successLogSegmentInfos, "200");
+                            criteriaBasedIndexWriters.get("400").incRefDeleter(clientErrorLogSegmentInfos);
+                            criteriaBasedIndexWriters.get("200").incRefDeleter(successLogSegmentInfos);
                             parentIndexWriter.addIndexes(clientErrorLogSegmentInfos, successLogSegmentInfos);
                             final Map<String, String> userData = getParentCommitData(translogManager.getTranslogUUID());
                             SegmentInfos latestSegmentInfos = parentIndexWriter.getSegmentInfos();
@@ -2323,19 +2329,19 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+        final IndexCommit lastCommit = parentIndexWriterCombinedDeletionPolicy.acquireIndexCommit(false);
         return new GatedCloseable<>(lastCommit, () -> releaseIndexCommit(lastCommit));
     }
 
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
-        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+        final IndexCommit safeCommit = parentIndexWriterCombinedDeletionPolicy.acquireIndexCommit(true);
         return new GatedCloseable<>(safeCommit, () -> releaseIndexCommit(safeCommit));
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
-        if (combinedDeletionPolicy.releaseCommit(snapshot)) {
+        if (parentIndexWriterCombinedDeletionPolicy.releaseCommit(snapshot)) {
             try {
                 // Here we don't have to trim translog because snapshotting an index commit
                 // does not lock translog or prevents unreferenced files from trimming.
@@ -2355,7 +2361,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return combinedDeletionPolicy.getSafeCommitInfo();
+        return parentIndexWriterCombinedDeletionPolicy.getSafeCommitInfo();
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
@@ -2567,11 +2573,11 @@ public class InternalEngine extends Engine {
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 if (prev200 != null) {
-                    prev200.close();
+                    criteriaBasedIndexWriters.get("200").decRefDeleter(prev200);
                 }
 
                 if (prev400 != null) {
-                    prev400.close();
+                    criteriaBasedIndexWriters.get("400").decRefDeleter(prev400);
                 }
 
                 this.versionMap.clear();
@@ -2654,7 +2660,7 @@ public class InternalEngine extends Engine {
 
     private IndexWriter createWriter() throws IOException {
         try {
-            final IndexWriterConfig iwc = getIndexWriterConfig(mergeSchedulerCriteriaMap.get("-1"), null, combinedDeletionPolicy);
+            final IndexWriterConfig iwc = getIndexWriterConfig(mergeSchedulerCriteriaMap.get("-1"), null, parentIndexWriterCombinedDeletionPolicy);
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {

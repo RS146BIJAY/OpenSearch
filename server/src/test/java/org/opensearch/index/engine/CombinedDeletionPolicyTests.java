@@ -296,7 +296,7 @@ public class CombinedDeletionPolicyTests extends OpenSearchTestCase {
         SoftDeletesPolicy softDeletesPolicy,
         AtomicLong globalCheckpoint
     ) {
-        return new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get) {
+        return new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get, null) {
             @Override
             protected int getDocCountOfCommit(IndexCommit indexCommit) {
                 return between(0, 1000);

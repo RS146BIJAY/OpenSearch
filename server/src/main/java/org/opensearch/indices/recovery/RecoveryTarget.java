@@ -385,7 +385,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                     || indexShard.indexSettings().isRemoteSnapshot();
                 if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
-                    System.out.println("Translog UUID (From RecoveryTarget cleanFiles): " + translogUUID);
+//                    System.out.println("Translog UUID (From RecoveryTarget cleanFiles): " + translogUUID);
                     Translog.createEmptyTranslog(
                         indexShard.shardPath().resolveTranslog(),
                         shardId(),
@@ -401,7 +401,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                         shardId(),
                         indexShard.getPendingPrimaryTerm()
                     );
-                    System.out.println("Translog UUID (From RecoveryTarget cleanFiles): " + translogUUID);
+//                    System.out.println("Translog UUID (From RecoveryTarget cleanFiles): " + translogUUID);
                     store.associateIndexWithNewTranslog(translogUUID);
                 }
 

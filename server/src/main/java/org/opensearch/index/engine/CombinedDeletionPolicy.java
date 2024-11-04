@@ -35,6 +35,8 @@ package org.opensearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -69,18 +71,21 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
+    private final Map<String, IndexWriter> childIndexWriterMap;
 
     CombinedDeletionPolicy(
         Logger logger,
         TranslogDeletionPolicy translogDeletionPolicy,
         SoftDeletesPolicy softDeletesPolicy,
-        LongSupplier globalCheckpointSupplier
+        LongSupplier globalCheckpointSupplier,
+        final Map<String, IndexWriter> childIndexWriterMap
     ) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.snapshottedCommits = new HashMap<>();
+        this.childIndexWriterMap = childIndexWriterMap;
     }
 
     @Override
@@ -123,7 +128,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             safeCommit = this.safeCommit;
         }
 
-        System.out.println("Local checkpoint set for safe commit " + safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+//        System.out.println("Local checkpoint set for safe commit " + safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
         safeCommitInfo = new SafeCommitInfo(
             Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
@@ -143,8 +148,29 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private void deleteCommit(IndexCommit commit) throws IOException {
         assert commit.isDeleted() == false : "Index commit [" + commitDescription(commit) + "] is deleted twice";
         logger.debug("Delete index commit [{}]", commitDescription(commit));
+        // Incase this combined deletion policy belongs to parent IndexWriter, decRef all the files of child IndexWriter.
+        if(childIndexWriterMap != null) {
+            decReferenceOfChildLevelIndexWriter(commit);
+        }
+
         commit.delete();
         assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
+    }
+
+    private void decReferenceOfChildLevelIndexWriter(IndexCommit indexCommit) throws IOException {
+        SegmentInfos parentSegmentInfos = SegmentInfos.readCommit(indexCommit.getDirectory(), indexCommit.getSegmentsFileName());
+        SegmentInfos successSegmentInfos = new SegmentInfos(parentSegmentInfos.getIndexCreatedVersionMajor());
+        SegmentInfos errorSegmentInfos = new SegmentInfos(parentSegmentInfos.getIndexCreatedVersionMajor());
+        for (SegmentCommitInfo commitInfo: parentSegmentInfos) {
+            if (commitInfo.info.name.startsWith("200")) {
+                successSegmentInfos.add(commitInfo);
+            } else if (commitInfo.info.name.startsWith("400")) {
+                errorSegmentInfos.add(commitInfo);
+            }
+        }
+
+        childIndexWriterMap.get("200").decRefDeleter(successSegmentInfos);
+        childIndexWriterMap.get("400").decRefDeleter(errorSegmentInfos);
     }
 
     private void updateRetentionPolicy() throws IOException {
@@ -153,7 +179,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
         final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        System.out.println("Local checkpoint set for safe commit inside updateRetentionPolicy " + localCheckpointOfSafeCommit);
+//        System.out.println("Local checkpoint set for safe commit inside updateRetentionPolicy " + localCheckpointOfSafeCommit);
         softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
     }

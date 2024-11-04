@@ -516,7 +516,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     ) throws IOException {
         final TranslogWriter newWriter;
         try {
-            System.out.println("Translog UUID (From TranslogWriter createWriter): " + translogUUID);
+//            System.out.println("Translog UUID (From TranslogWriter createWriter): " + translogUUID);
             newWriter = TranslogWriter.create(
                 shardId,
                 translogUUID,
@@ -1991,9 +1991,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         ChannelFactory channelFactory,
         long primaryTerm
     ) throws IOException {
-        System.out.println("Translog UUID (From Translog createEmptyTranslog): nulling");
+//        System.out.println("Translog UUID (From Translog createEmptyTranslog): nulling");
         String newTranslog = createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory);
-        System.out.println("Translog UUID (From Translog createEmptyTranslog) post log : " + newTranslog);
+//        System.out.println("Translog UUID (From Translog createEmptyTranslog) post log : " + newTranslog);
         return newTranslog;
     }
 
@@ -2022,7 +2022,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         @Nullable final String translogUUID,
         @Nullable final ChannelFactory factory
     ) throws IOException {
-        System.out.println("Translog UUID (From Translog createEmptyTranslog 1st): " + translogUUID);
+//        System.out.println("Translog UUID (From Translog createEmptyTranslog 1st): " + translogUUID);
         return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, translogUUID, factory, 1);
     }
 
@@ -2035,7 +2035,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         final String translogUUID = translogHeader.getTranslogUUID();
         final long primaryTerm = translogHeader.getPrimaryTerm();
         final ChannelFactory channelFactory = FileChannel::open;
-        System.out.println("Translog UUID (From Translog createEmptyTranslog 2nd): " + translogUUID);
+//        System.out.println("Translog UUID (From Translog createEmptyTranslog 2nd): " + translogUUID);
         return Translog.createEmptyTranslog(
             location,
             shardId,
@@ -2066,7 +2066,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
 
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-        System.out.println("Translog UUID (From Translog createEmptyTranslog): " + uuid);
+//        System.out.println("Translog UUID (From Translog createEmptyTranslog): " + uuid);
         final TranslogWriter writer = TranslogWriter.create(
             shardId,
             uuid,
