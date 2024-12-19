@@ -70,7 +70,9 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.IndexingRetryException;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.LoggerInfoStream;
@@ -932,7 +934,7 @@ public class InternalEngine extends Engine {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translogManager.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexResult.getFailure() != null && !(indexResult.getFailure() instanceof IndexingRetryException)) {
                         // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(
                             indexResult.getSeqNo(),
@@ -955,7 +957,7 @@ public class InternalEngine extends Engine {
                     );
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-                if (indexResult.getTranslogLocation() == null) {
+                if (indexResult.getTranslogLocation() == null && !(indexResult.getFailure() != null && (indexResult.getFailure() instanceof IndexingRetryException))) {
                     // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
@@ -1049,7 +1051,7 @@ public class InternalEngine extends Engine {
         } else {
             versionMap.enforceSafeAccess();
             // resolves incoming version
-            final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+            final VersionValue versionValue = resolveDocVersion(index, true);
             final long currentVersion;
             final boolean currentNotFoundOrDeleted;
             if (versionValue == null) {
@@ -1092,6 +1094,17 @@ public class InternalEngine extends Engine {
                     final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
                     if (reserveError != null) {
                         plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                    } else if (currentVersion >= 1 && engineConfig.getIndexSettings().isAppendOnly()) {
+                        if (index.isRetry()) {
+                            IndexingRetryException retryException = new IndexingRetryException("Indexing operation retried for append only indices");
+                            final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
+                            plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
+                        } else {
+                            ValidationException validationException = new ValidationException();
+                            validationException.addValidationError("Operation [" + index.operationType() + "] is not allowed for append only indices");
+                            final IndexResult result = new IndexResult(validationException, Versions.NOT_FOUND);
+                            plan = IndexingStrategy.failAsIndexAppendOnly(result, Versions.NOT_FOUND, 0);
+                        }
                     } else {
                         plan = IndexingStrategy.processNormally(
                             currentNotFoundOrDeleted,
@@ -1282,6 +1295,10 @@ public class InternalEngine extends Engine {
         static IndexingStrategy failAsTooManyDocs(Exception e) {
             final IndexResult result = new IndexResult(e, Versions.NOT_FOUND);
             return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
+        }
+
+        static IndexingStrategy failAsIndexAppendOnly(IndexResult result, long versionForIndexing, int reservedDocs) {
+            return new IndexingStrategy(false, false, false, true, versionForIndexing, reservedDocs, result);
         }
     }
 

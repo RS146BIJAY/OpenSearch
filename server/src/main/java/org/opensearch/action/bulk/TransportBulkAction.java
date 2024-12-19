@@ -66,6 +66,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
@@ -538,6 +539,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (docWriteRequest == null) {
                     continue;
                 }
+
+                if(addFailureIfIndexAppendOnlyAndOpsDeleteOrUpdate(docWriteRequest, i, concreteIndices)) {
+                    continue;
+                }
+
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
@@ -754,6 +760,30 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     run();
                 }
             });
+        }
+
+        private boolean addFailureIfIndexAppendOnlyAndOpsDeleteOrUpdate(DocWriteRequest<?> request, int idx,
+                                                                        final ConcreteIndices concreteIndices) {
+            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
+            if (concreteIndex == null) {
+                try {
+                    concreteIndex = concreteIndices.resolveIfAbsent(request);
+                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                    addFailure(request, idx, ex);
+                    return true;
+                }
+            }
+
+            if ((request.opType() == DocWriteRequest.OpType.UPDATE || request.opType() == DocWriteRequest.OpType.DELETE)
+                && indicesService.indexServiceSafe(concreteIndex).getIndexSettings().isAppendOnly() == true) {
+                ValidationException exception = new ValidationException();
+                exception.addValidationError("Operation [" + request.opType()
+                    + "] is not allowed for append only index " + request.index());
+                addFailure(request, idx, exception);
+                return true;
+            }
+
+            return false;
         }
 
         private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
