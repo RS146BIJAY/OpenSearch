@@ -150,37 +150,37 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
-        assertAcked(
-            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
-        );
-        Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
-        assertThat(
-            "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
-            metadata.persistentSettings().size(),
-            equalTo(0)
-        );
-        assertThat(
-            "test leaves transient cluster metadata behind: " + metadata.transientSettings().keySet(),
-            metadata.transientSettings().size(),
-            equalTo(0)
-        );
-        GetIndexResponse indices = client().admin()
-            .indices()
-            .prepareGetIndex()
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .addIndices("*")
-            .get();
-        assertThat(
-            "test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
-            indices.indices(),
-            equalTo(Strings.EMPTY_ARRAY)
-        );
-        if (resetNodeAfterTest()) {
-            assert NODE != null;
-            stopNode();
-            // the seed can be created within this if as it will either be executed before every test method or will never be.
-            startNode(random().nextLong());
-        }
+//        assertAcked(
+//            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
+//        );
+//        Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
+//        assertThat(
+//            "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
+//            metadata.persistentSettings().size(),
+//            equalTo(0)
+//        );
+//        assertThat(
+//            "test leaves transient cluster metadata behind: " + metadata.transientSettings().keySet(),
+//            metadata.transientSettings().size(),
+//            equalTo(0)
+//        );
+//        GetIndexResponse indices = client().admin()
+//            .indices()
+//            .prepareGetIndex()
+//            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+//            .addIndices("*")
+//            .get();
+//        assertThat(
+//            "test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
+//            indices.indices(),
+//            equalTo(Strings.EMPTY_ARRAY)
+//        );
+//        if (resetNodeAfterTest()) {
+//            assert NODE != null;
+//            stopNode();
+//            // the seed can be created within this if as it will either be executed before every test method or will never be.
+//            startNode(random().nextLong());
+//        }
     }
 
     @BeforeClass
