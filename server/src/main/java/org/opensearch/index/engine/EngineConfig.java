@@ -358,7 +358,7 @@ public final class EngineConfig {
     }
 
     public boolean isContextAwareEnabled() {
-        return isContextAwareEnabled;
+        return true;
     }
 
     /**
