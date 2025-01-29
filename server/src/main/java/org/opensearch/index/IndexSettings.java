@@ -791,6 +791,7 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
     private final boolean isStoreLocalityPartial;
+    private volatile boolean isContextAwareEnabled;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
@@ -994,6 +995,7 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isContextAwareEnabled = settings.getAsBoolean(IndexMetadata.SETTING_CONTEXT_AWARE_ENABLED, false);
         isStoreLocalityPartial = settings.get(
             IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(),
             IndexModule.DataLocalityType.FULL.toString()
@@ -1186,6 +1188,7 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_CONTEXT_AWARE_ENABLED_SETTING, this::setContextAwareEnabled);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
             this::setDocIdFuzzySetFalsePositiveProbability
@@ -1345,6 +1348,14 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isContextAwareEnabled() {
+        return isContextAwareEnabled;
+    }
+
+    public void setContextAwareEnabled(boolean contextAwareEnabled) {
+        isContextAwareEnabled = contextAwareEnabled;
     }
 
     public boolean isAssignedOnRemoteNode() {

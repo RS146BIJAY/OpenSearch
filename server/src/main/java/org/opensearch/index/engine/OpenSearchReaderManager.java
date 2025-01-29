@@ -33,12 +33,17 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utility class to safely share {@link OpenSearchDirectoryReader} instances across
@@ -50,7 +55,7 @@ import java.io.IOException;
  * @opensearch.internal
  */
 @SuppressForbidden(reason = "reference counting is required here")
-class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
+class OpenSearchReaderManager extends ReferenceManager<OpenSearchMultiReader> {
     /**
      * Creates and returns a new OpenSearchReaderManager from the given
      * already-opened {@link OpenSearchDirectoryReader}, stealing
@@ -58,28 +63,37 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
      *
      * @param reader            the directoryReader to use for future reopens
      */
-    OpenSearchReaderManager(OpenSearchDirectoryReader reader) {
+    OpenSearchReaderManager(OpenSearchMultiReader reader) {
         this.current = reader;
     }
 
     @Override
-    protected void decRef(OpenSearchDirectoryReader reference) throws IOException {
+    protected void decRef(OpenSearchMultiReader reference) throws IOException {
         reference.decRef();
     }
 
     @Override
-    protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
-        final OpenSearchDirectoryReader reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
-        return reader;
+    protected OpenSearchMultiReader refreshIfNeeded(OpenSearchMultiReader referenceToRefresh) throws IOException {
+        final List<IndexReader> readerList = new ArrayList<>();
+        for (DirectoryReader reader: referenceToRefresh.getSubDirectoryReaderList()) {
+            readerList.add(DirectoryReader.openIfChanged(reader));
+        }
+
+        if (!readerList.isEmpty()) {
+            return new OpenSearchMultiReader(readerList, referenceToRefresh.getDirectory(), referenceToRefresh.getCriteriaList(), referenceToRefresh.getShardId());
+        } else {
+            return null;
+        }
+
     }
 
     @Override
-    protected boolean tryIncRef(OpenSearchDirectoryReader reference) {
+    protected boolean tryIncRef(OpenSearchMultiReader reference) {
         return reference.tryIncRef();
     }
 
     @Override
-    protected int getRefCount(OpenSearchDirectoryReader reference) {
+    protected int getRefCount(OpenSearchMultiReader reference) {
         return reference.getRefCount();
     }
 }

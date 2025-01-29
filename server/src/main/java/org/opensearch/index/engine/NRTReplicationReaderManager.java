@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
@@ -19,8 +20,10 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -50,46 +53,52 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
      * @param onReaderClosed - Called when a reader is closed.
      */
     NRTReplicationReaderManager(
-        OpenSearchDirectoryReader reader,
+        OpenSearchMultiReader reader,
         Consumer<Collection<String>> onNewReader,
         Consumer<Collection<String>> onReaderClosed
-    ) {
+    ) throws IOException {
         super(reader);
-        currentInfos = unwrapStandardReader(reader).getSegmentInfos();
+        currentInfos = unwrapMultiReader(reader).getSegmentInfos();
         this.onNewReader = onNewReader;
         this.onReaderClosed = onReaderClosed;
     }
 
     @Override
-    protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
-        Objects.requireNonNull(referenceToRefresh);
-        // checks if an actual refresh (change in segments) happened
-        if (unwrapStandardReader(referenceToRefresh).getSegmentInfos().version == currentInfos.version) {
-            return null;
+    protected OpenSearchMultiReader refreshIfNeeded(OpenSearchMultiReader referenceToRefresh) throws IOException {
+        final List<OpenSearchDirectoryReader> readerList = new ArrayList<>();
+        for (OpenSearchDirectoryReader directoryReaderToRefresh: referenceToRefresh.getSubDirectoryReaderList()) {
+            Objects.requireNonNull(directoryReaderToRefresh);
+            // checks if an actual refresh (change in segments) happened
+            if (unwrapStandardReader(directoryReaderToRefresh).getSegmentInfos().version == currentInfos.version) {
+                return null;
+            }
+            final List<LeafReader> subs = new ArrayList<>();
+            final StandardDirectoryReader standardDirectoryReader = unwrapStandardReader(directoryReaderToRefresh);
+            for (LeafReaderContext ctx : standardDirectoryReader.leaves()) {
+                subs.add(ctx.reader());
+            }
+            // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
+            // does not yet exist on store (not yet committed)
+            final Collection<String> files = currentInfos.files(false);
+            DirectoryReader innerReader = StandardDirectoryReader.open(directoryReaderToRefresh.directory(), currentInfos, subs, null);
+            final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
+                innerReader,
+                Lucene.SOFT_DELETES_FIELD
+            );
+            logger.trace(
+                () -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader)
+            );
+            final OpenSearchDirectoryReader reader = OpenSearchDirectoryReader.wrap(
+                softDeletesDirectoryReaderWrapper,
+                directoryReaderToRefresh.shardId()
+            );
+            onNewReader.accept(files);
+            OpenSearchDirectoryReader.addReaderCloseListener(reader, key -> onReaderClosed.accept(files));
+            readerList.add(reader);
         }
-        final List<LeafReader> subs = new ArrayList<>();
-        final StandardDirectoryReader standardDirectoryReader = unwrapStandardReader(referenceToRefresh);
-        for (LeafReaderContext ctx : standardDirectoryReader.leaves()) {
-            subs.add(ctx.reader());
-        }
-        // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
-        // does not yet exist on store (not yet committed)
-        final Collection<String> files = currentInfos.files(false);
-        DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
-        final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
-            innerReader,
-            Lucene.SOFT_DELETES_FIELD
-        );
-        logger.trace(
-            () -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader)
-        );
-        final OpenSearchDirectoryReader reader = OpenSearchDirectoryReader.wrap(
-            softDeletesDirectoryReaderWrapper,
-            referenceToRefresh.shardId()
-        );
-        onNewReader.accept(files);
-        OpenSearchDirectoryReader.addReaderCloseListener(reader, key -> onReaderClosed.accept(files));
-        return reader;
+
+        return new OpenSearchMultiReader(new ArrayList<>(readerList),
+            referenceToRefresh.getDirectory(), referenceToRefresh.getCriteriaList(), referenceToRefresh.getShardId());
     }
 
     /**
@@ -116,5 +125,19 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
             return (StandardDirectoryReader) ((SoftDeletesDirectoryReaderWrapper) delegate).getDelegate();
         }
         return (StandardDirectoryReader) delegate;
+    }
+
+    public static OpenSearchMultiReader unwrapMultiReader(OpenSearchMultiReader multiReader) throws IOException {
+        List<StandardDirectoryReader> standardDirectoryReaders = new ArrayList<>();
+        for (OpenSearchDirectoryReader reader: multiReader.getSubDirectoryReaderList()) {
+            final DirectoryReader delegate = reader.getDelegate();
+            if (delegate instanceof SoftDeletesDirectoryReaderWrapper) {
+                standardDirectoryReaders.add((StandardDirectoryReader) ((SoftDeletesDirectoryReaderWrapper) delegate).getDelegate());
+            } else {
+                standardDirectoryReaders.add((StandardDirectoryReader) delegate);
+            }
+        }
+
+        return new OpenSearchMultiReader(multiReader.getDirectory(), standardDirectoryReaders, multiReader.getCriteriaList(), multiReader.getShardId());
     }
 }

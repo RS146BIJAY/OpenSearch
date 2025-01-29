@@ -68,6 +68,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
@@ -756,8 +757,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            OpenSearchDirectoryReader acquire = referenceManager.acquire();
+            ReferenceManager<OpenSearchMultiReader> referenceManager = getReferenceManager(scope);
+            OpenSearchMultiReader acquire = referenceManager.acquire();
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -827,7 +828,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
     }
 
-    protected abstract ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope);
+    protected abstract ReferenceManager<OpenSearchMultiReader> getReferenceManager(SearcherScope scope);
 
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
@@ -1234,7 +1235,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Snapshots the most recent safe index commit from the engine.
      */
-    public abstract GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
+    public abstract GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException, IOException;
 
     /**
      * @return a summary of the contents of the current safe commit
@@ -2056,7 +2057,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         /**
          * Called once a new top-level reader is opened.
          */
-        void warm(OpenSearchDirectoryReader reader);
+        void warm(OpenSearchMultiReader reader);
     }
 
     /**

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataService;
@@ -75,7 +76,7 @@ public final class IndexWarmer {
         this.listeners = Collections.unmodifiableList(list);
     }
 
-    void warm(OpenSearchDirectoryReader reader, IndexShard shard, IndexSettings settings) {
+    void warm(OpenSearchMultiReader reader, IndexShard shard, IndexSettings settings) {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }

@@ -10,13 +10,16 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.Directory;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -35,8 +38,11 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,6 +74,7 @@ public class NRTReplicationEngine extends Engine {
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
     private static final int SI_COUNTER_INCREMENT = 10;
+    private final Map<String, OpenSearchConcurrentMergeScheduler> mergeSchedulerCriteriaMap = new HashMap<>();
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
@@ -147,8 +154,16 @@ public class NRTReplicationEngine extends Engine {
     }
 
     private NRTReplicationReaderManager buildReaderManager() throws IOException {
+        final List<IndexReader> directoryReaderList = new ArrayList<>();
+        if (config().isContextAwareEnabled()) {
+            directoryReaderList.add(getDirectoryReader(store.getDirectoryMapping().get("200")));
+            directoryReaderList.add(getDirectoryReader(store.getDirectoryMapping().get("400")));
+        } else {
+            directoryReaderList.add(getDirectoryReader(store.directory()));
+        }
+
         return new NRTReplicationReaderManager(
-            OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
+            new OpenSearchMultiReader(directoryReaderList, store.directory(), new HashSet<>(Arrays.asList("200", "400")), shardId),
             replicaFileTracker::incRef,
             replicaFileTracker::decRef
         );
@@ -270,7 +285,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    protected ReferenceManager<OpenSearchMultiReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
 
@@ -528,8 +543,8 @@ public class NRTReplicationEngine extends Engine {
         return localCheckpointTracker;
     }
 
-    private DirectoryReader getDirectoryReader() throws IOException {
+    private DirectoryReader getDirectoryReader(Directory directory) throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
+        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory), Lucene.SOFT_DELETES_FIELD);
     }
 }

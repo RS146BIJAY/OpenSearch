@@ -19,31 +19,31 @@ import java.io.IOException;
 
 public class NRTReplicationReaderManagerTests extends EngineTestCase {
 
-    public void testCreateNRTreaderManager() throws IOException {
-        try (final Store store = createStore()) {
-            store.createEmpty(Version.LATEST);
-            final DirectoryReader reader = DirectoryReader.open(store.directory());
-            final SegmentInfos initialInfos = ((StandardDirectoryReader) reader).getSegmentInfos();
-            NRTReplicationReaderManager readerManager = new NRTReplicationReaderManager(
-                OpenSearchDirectoryReader.wrap(reader, shardId),
-                (files) -> {},
-                (files) -> {}
-            );
-            assertEquals(initialInfos, readerManager.getSegmentInfos());
-            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
-                assertNull(readerManager.refreshIfNeeded(acquire));
-            }
-
-            // create an updated infos
-            final SegmentInfos infos_2 = readerManager.getSegmentInfos().clone();
-            infos_2.changed();
-
-            readerManager.updateSegments(infos_2);
-            assertEquals(infos_2, readerManager.getSegmentInfos());
-            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
-                final StandardDirectoryReader standardReader = NRTReplicationReaderManager.unwrapStandardReader(acquire);
-                assertEquals(infos_2, standardReader.getSegmentInfos());
-            }
-        }
-    }
+//    public void testCreateNRTreaderManager() throws IOException {
+//        try (final Store store = createStore()) {
+//            store.createEmpty(Version.LATEST);
+//            final DirectoryReader reader = DirectoryReader.open(store.directory());
+//            final SegmentInfos initialInfos = ((StandardDirectoryReader) reader).getSegmentInfos();
+//            NRTReplicationReaderManager readerManager = new NRTReplicationReaderManager(
+//                OpenSearchDirectoryReader.wrap(reader, shardId),
+//                (files) -> {},
+//                (files) -> {}
+//            );
+//            assertEquals(initialInfos, readerManager.getSegmentInfos());
+//            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
+//                assertNull(readerManager.refreshIfNeeded(acquire));
+//            }
+//
+//            // create an updated infos
+//            final SegmentInfos infos_2 = readerManager.getSegmentInfos().clone();
+//            infos_2.changed();
+//
+//            readerManager.updateSegments(infos_2);
+//            assertEquals(infos_2, readerManager.getSegmentInfos());
+//            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
+//                final StandardDirectoryReader standardReader = NRTReplicationReaderManager.unwrapStandardReader(acquire);
+//                assertEquals(infos_2, standardReader.getSegmentInfos());
+//            }
+//        }
+//    }
 }

@@ -1704,7 +1704,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Snapshots the most recent safe index commit from the currently running engine.
      * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
      */
-    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException, IOException {
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
@@ -4071,8 +4071,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica,
             this::enableUploadToRemoteTranslog,
             translogFactorySupplier.apply(indexSettings, shardRouting),
-            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
-            // timeseries
+            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for// timeseries,
+            indexSettings.isContextAwareEnabled()
         );
     }
 
@@ -4956,7 +4956,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (newEngineReference.get() == null) {
                             throw new AlreadyClosedException("engine was closed");
                         }
-                        return newEngineReference.get().acquireSafeIndexCommit();
+                        try {
+                            return newEngineReference.get().acquireSafeIndexCommit();
+                        } catch (Exception e) {
+                            throw new AlreadyClosedException(e.getMessage());
+                        }
+
                     }
                 }
 

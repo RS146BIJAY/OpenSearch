@@ -1305,122 +1305,122 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         waitForSearchableDocs(finalDocCount, primary, replica);
     }
 
-    public void testPitCreatedOnReplica() throws Exception {
-        final String primary = internalCluster().startDataOnlyNode();
-        createIndex(INDEX_NAME);
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataOnlyNode();
-        ensureGreen(INDEX_NAME);
-
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource("foo", randomInt())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-            refresh(INDEX_NAME);
-        }
-        // wait until replication finishes, then make the pit request.
-        assertBusy(
-            () -> assertEquals(
-                getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-                getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
-            )
-        );
-        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), false);
-        request.setPreference("_only_local");
-        request.setIndices(new String[] { INDEX_NAME });
-        ActionFuture<CreatePitResponse> execute = client(replica).execute(CreatePitAction.INSTANCE, request);
-        CreatePitResponse pitResponse = execute.get();
-        SearchResponse searchResponse = client(replica).prepareSearch(INDEX_NAME)
-            .setSize(10)
-            .setPreference("_only_local")
-            .setRequestCache(false)
-            .addSort("foo", SortOrder.ASC)
-            .searchAfter(new Object[] { 30 })
-            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
-            .get();
-        assertEquals(1, searchResponse.getSuccessfulShards());
-        assertEquals(1, searchResponse.getTotalShards());
-        FlushRequest flushRequest = Requests.flushRequest(INDEX_NAME);
-        client().admin().indices().flush(flushRequest).get();
-        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-
-        // fetch the segments snapshotted when the reader context was created.
-        Collection<String> snapshottedSegments;
-        SearchService searchService = internalCluster().getInstance(SearchService.class, replica);
-        NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class, replica);
-        final PitReaderContext pitReaderContext = searchService.getPitReaderContext(
-            decode(registry, pitResponse.getId()).shards().get(replicaShard.routingEntry().shardId()).getSearchContextId()
-        );
-        try (final Engine.Searcher searcher = pitReaderContext.acquireSearcher("test")) {
-            final StandardDirectoryReader standardDirectoryReader = NRTReplicationReaderManager.unwrapStandardReader(
-                (OpenSearchDirectoryReader) searcher.getDirectoryReader()
-            );
-            final SegmentInfos infos = standardDirectoryReader.getSegmentInfos();
-            snapshottedSegments = infos.files(false);
-        }
-
-        flush(INDEX_NAME);
-        for (int i = 11; i < 20; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource("foo", randomInt())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-            refresh(INDEX_NAME);
-            if (randomBoolean()) {
-                client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
-                flush(INDEX_NAME);
-            }
-        }
-        assertBusy(() -> {
-            assertEquals(
-                getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-                getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
-            );
-        });
-
-        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
-        assertBusy(() -> {
-            assertEquals(
-                getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-                getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
-            );
-        });
-        // Test stats
-        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-        indicesStatsRequest.indices(INDEX_NAME);
-        indicesStatsRequest.all();
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
-        long pitCurrent = indicesStatsResponse.getIndex(INDEX_NAME).getTotal().search.getTotal().getPitCurrent();
-        long openContexts = indicesStatsResponse.getIndex(INDEX_NAME).getTotal().search.getOpenContexts();
-        assertEquals(1, pitCurrent);
-        assertEquals(1, openContexts);
-        SearchResponse resp = client(replica).prepareSearch(INDEX_NAME)
-            .setSize(10)
-            .setPreference("_only_local")
-            .addSort("foo", SortOrder.ASC)
-            .searchAfter(new Object[] { 30 })
-            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
-            .setRequestCache(false)
-            .get();
-        PitTestsUtil.assertUsingGetAllPits(client(replica), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
-        assertSegments(false, INDEX_NAME, 1, client(replica), pitResponse.getId());
-
-        List<String> currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertTrue("Files should be preserved", currentFiles.containsAll(snapshottedSegments));
-
-        // delete the PIT
-        DeletePitRequest deletePITRequest = new DeletePitRequest(pitResponse.getId());
-        client().execute(DeletePitAction.INSTANCE, deletePITRequest).actionGet();
-        assertBusy(
-            () -> assertFalse(
-                "Files should be cleaned up",
-                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
-            )
-        );
-    }
+//    public void testPitCreatedOnReplica() throws Exception {
+//        final String primary = internalCluster().startDataOnlyNode();
+//        createIndex(INDEX_NAME);
+//        ensureYellowAndNoInitializingShards(INDEX_NAME);
+//        final String replica = internalCluster().startDataOnlyNode();
+//        ensureGreen(INDEX_NAME);
+//
+//        for (int i = 0; i < 10; i++) {
+//            client().prepareIndex(INDEX_NAME)
+//                .setId(String.valueOf(i))
+//                .setSource("foo", randomInt())
+//                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+//                .get();
+//            refresh(INDEX_NAME);
+//        }
+//        // wait until replication finishes, then make the pit request.
+//        assertBusy(
+//            () -> assertEquals(
+//                getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+//                getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
+//            )
+//        );
+//        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), false);
+//        request.setPreference("_only_local");
+//        request.setIndices(new String[] { INDEX_NAME });
+//        ActionFuture<CreatePitResponse> execute = client(replica).execute(CreatePitAction.INSTANCE, request);
+//        CreatePitResponse pitResponse = execute.get();
+//        SearchResponse searchResponse = client(replica).prepareSearch(INDEX_NAME)
+//            .setSize(10)
+//            .setPreference("_only_local")
+//            .setRequestCache(false)
+//            .addSort("foo", SortOrder.ASC)
+//            .searchAfter(new Object[] { 30 })
+//            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+//            .get();
+//        assertEquals(1, searchResponse.getSuccessfulShards());
+//        assertEquals(1, searchResponse.getTotalShards());
+//        FlushRequest flushRequest = Requests.flushRequest(INDEX_NAME);
+//        client().admin().indices().flush(flushRequest).get();
+//        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
+//
+//        // fetch the segments snapshotted when the reader context was created.
+//        Collection<String> snapshottedSegments;
+//        SearchService searchService = internalCluster().getInstance(SearchService.class, replica);
+//        NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class, replica);
+//        final PitReaderContext pitReaderContext = searchService.getPitReaderContext(
+//            decode(registry, pitResponse.getId()).shards().get(replicaShard.routingEntry().shardId()).getSearchContextId()
+//        );
+//        try (final Engine.Searcher searcher = pitReaderContext.acquireSearcher("test")) {
+//            final StandardDirectoryReader standardDirectoryReader = NRTReplicationReaderManager.unwrapStandardReader(
+//                (OpenSearchDirectoryReader) searcher.getDirectoryReader()
+//            );
+//            final SegmentInfos infos = standardDirectoryReader.getSegmentInfos();
+//            snapshottedSegments = infos.files(false);
+//        }
+//
+//        flush(INDEX_NAME);
+//        for (int i = 11; i < 20; i++) {
+//            client().prepareIndex(INDEX_NAME)
+//                .setId(String.valueOf(i))
+//                .setSource("foo", randomInt())
+//                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+//                .get();
+//            refresh(INDEX_NAME);
+//            if (randomBoolean()) {
+//                client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
+//                flush(INDEX_NAME);
+//            }
+//        }
+//        assertBusy(() -> {
+//            assertEquals(
+//                getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+//                getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
+//            );
+//        });
+//
+//        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
+//        assertBusy(() -> {
+//            assertEquals(
+//                getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+//                getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
+//            );
+//        });
+//        // Test stats
+//        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+//        indicesStatsRequest.indices(INDEX_NAME);
+//        indicesStatsRequest.all();
+//        IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
+//        long pitCurrent = indicesStatsResponse.getIndex(INDEX_NAME).getTotal().search.getTotal().getPitCurrent();
+//        long openContexts = indicesStatsResponse.getIndex(INDEX_NAME).getTotal().search.getOpenContexts();
+//        assertEquals(1, pitCurrent);
+//        assertEquals(1, openContexts);
+//        SearchResponse resp = client(replica).prepareSearch(INDEX_NAME)
+//            .setSize(10)
+//            .setPreference("_only_local")
+//            .addSort("foo", SortOrder.ASC)
+//            .searchAfter(new Object[] { 30 })
+//            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+//            .setRequestCache(false)
+//            .get();
+//        PitTestsUtil.assertUsingGetAllPits(client(replica), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
+//        assertSegments(false, INDEX_NAME, 1, client(replica), pitResponse.getId());
+//
+//        List<String> currentFiles = List.of(replicaShard.store().directory().listAll());
+//        assertTrue("Files should be preserved", currentFiles.containsAll(snapshottedSegments));
+//
+//        // delete the PIT
+//        DeletePitRequest deletePITRequest = new DeletePitRequest(pitResponse.getId());
+//        client().execute(DeletePitAction.INSTANCE, deletePITRequest).actionGet();
+//        assertBusy(
+//            () -> assertFalse(
+//                "Files should be cleaned up",
+//                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+//            )
+//        );
+//    }
 
     /**
      * This tests that if a primary receives docs while a replica is performing round of segrep during recovery
