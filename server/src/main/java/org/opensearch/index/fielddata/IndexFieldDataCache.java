@@ -34,7 +34,6 @@ package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;

@@ -30,8 +30,7 @@ public final class ByteBuffersIndexOutput extends IndexOutput {
 
     private ByteBuffersDataOutput delegate;
 
-    public ByteBuffersIndexOutput(
-        ByteBuffersDataOutput delegate, String resourceDescription, String name) {
+    public ByteBuffersIndexOutput(ByteBuffersDataOutput delegate, String resourceDescription, String name) {
         this(delegate, resourceDescription, name, new CRC32(), null);
     }
 
@@ -40,7 +39,8 @@ public final class ByteBuffersIndexOutput extends IndexOutput {
         String resourceDescription,
         String name,
         Checksum checksum,
-        Consumer<ByteBuffersDataOutput> onClose) {
+        Consumer<ByteBuffersDataOutput> onClose
+    ) {
         super(resourceDescription, name);
         this.delegate = delegate;
         this.checksum = checksum;

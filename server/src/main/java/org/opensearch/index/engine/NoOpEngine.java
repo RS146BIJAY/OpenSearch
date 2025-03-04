@@ -96,7 +96,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     protected OpenSearchMultiReader open(final IndexCommit commit) throws IOException {
         final Map<String, DirectoryReader> childReaderCriteriaMap = new HashMap<>();
         final CriteriaBasedCompositeDirectory multitenantDirectory = CriteriaBasedCompositeDirectory.unwrap(commit.getDirectory());
-        for (Map.Entry<String, Directory> multitenantEntry: multitenantDirectory.getCriteriaDirectoryMapping().entrySet()) {
+        for (Map.Entry<String, Directory> multitenantEntry : multitenantDirectory.getCriteriaDirectoryMapping().entrySet()) {
             String criteria = multitenantEntry.getKey();
             Directory directory = multitenantEntry.getValue();
             final List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);

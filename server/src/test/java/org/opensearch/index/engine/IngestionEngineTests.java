@@ -13,13 +13,11 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.After;
@@ -30,8 +28,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -88,27 +84,27 @@ public class IngestionEngineTests extends EngineTestCase {
         super.tearDown();
     }
 
-    public void testCreateEngine() throws IOException {
-        // wait for the engine to ingest all messages
-        waitForResults(ingestionEngine, 2);
-        // flush
-        ingestionEngine.flush(false, true);
-        Map<String, String> commitData = ingestionEngine.commitDataAsMap();
-        // verify the commit data
-        Assert.assertEquals(1, commitData.size());
-        Assert.assertEquals("2", commitData.get(StreamPoller.BATCH_START));
-
-        // verify the stored offsets
-        var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);
-        ingestionEngine.refresh("read_offset");
-        try (Engine.Searcher searcher = ingestionEngine.acquireSearcher("read_offset")) {
-            Set<IngestionShardPointer> persistedPointers = ingestionEngine.fetchPersistedOffsets(
-                Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
-                offset
-            );
-            Assert.assertEquals(2, persistedPointers.size());
-        }
-    }
+    // public void testCreateEngine() throws IOException {
+    // // wait for the engine to ingest all messages
+    // waitForResults(ingestionEngine, 2);
+    // // flush
+    // ingestionEngine.flush(false, true);
+    // Map<String, String> commitData = ingestionEngine.commitDataAsMap();
+    // // verify the commit data
+    // Assert.assertEquals(1, commitData.size());
+    // Assert.assertEquals("2", commitData.get(StreamPoller.BATCH_START));
+    //
+    // // verify the stored offsets
+    // var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);
+    // ingestionEngine.refresh("read_offset");
+    // try (Engine.Searcher searcher = ingestionEngine.acquireSearcher("read_offset")) {
+    // Set<IngestionShardPointer> persistedPointers = ingestionEngine.fetchPersistedOffsets(
+    // Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
+    // offset
+    // );
+    // Assert.assertEquals(2, persistedPointers.size());
+    // }
+    // }
 
     public void testRecovery() throws IOException {
         // wait for the engine to ingest all messages

@@ -76,7 +76,7 @@ public class Segment implements Writeable {
 
     public Segment(StreamInput in) throws IOException {
         name = in.readString();
-        generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
+        generation = Long.parseLong(name.substring(name.indexOf("$") + 1).substring(1), Character.MAX_RADIX);
         committed = in.readBoolean();
         search = in.readBoolean();
         docCount = in.readInt();
@@ -102,7 +102,7 @@ public class Segment implements Writeable {
 
     public Segment(String name) {
         this.name = name;
-        this.generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
+        this.generation = Long.parseLong(name.substring(name.indexOf("$") + 1).substring(1), Character.MAX_RADIX);
     }
 
     public String getName() {

@@ -31,7 +31,6 @@
 
 package org.opensearch.index.shard;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -281,14 +280,31 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Map<String, Directory> criteriaDirectoryMapping = new HashMap<>();
         criteriaDirectoryMapping.put("200", newFSDirectory(shardPath.resolveIndex().resolve("200")));
         criteriaDirectoryMapping.put("400", newFSDirectory(shardPath.resolveIndex().resolve("400")));
-        return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()), shardPath,
-            criteriaDirectoryMapping);
+        return createStore(
+            shardPath.getShardId(),
+            indexSettings,
+            newFSDirectory(shardPath.resolveIndex()),
+            shardPath,
+            criteriaDirectoryMapping
+        );
     }
 
-    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardPath shardPath,
-                                Map<String, Directory> criteriaDirectoryMapping) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath,
-            criteriaDirectoryMapping);
+    protected Store createStore(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardPath shardPath,
+        Map<String, Directory> criteriaDirectoryMapping
+    ) throws IOException {
+        return new Store(
+            shardId,
+            indexSettings,
+            directory,
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath,
+            criteriaDirectoryMapping
+        );
     }
 
     protected Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {

@@ -47,7 +47,6 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
@@ -348,60 +347,60 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
     }
 
-//    public void testCloseWhileOngoingRequestUsesRequestCache() throws Exception {
-//        Node node = startNode();
-//        IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-//        assertEquals(1, indicesService.indicesRefCount.refCount());
-//
-//        assertAcked(
-//            node.client()
-//                .admin()
-//                .indices()
-//                .prepareCreate("test")
-//                .setSettings(
-//                    Settings.builder()
-//                        .put(SETTING_NUMBER_OF_SHARDS, 1)
-//                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-//                        .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-//                )
-//        );
-//        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
-//        OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
-//
-//        assertEquals(2, indicesService.indicesRefCount.refCount());
-//
-//        IndicesRequestCache cache = indicesService.indicesRequestCache;
-//
-//        IndexService indexService = indicesService.iterator().next();
-//        IndexShard shard = indexService.getShard(0);
-//        Engine.Searcher searcher = shard.acquireSearcher("test");
-//        assertEquals(1, searcher.getIndexReader().maxDoc());
-//
-//        node.close();
-//        assertEquals(1, indicesService.indicesRefCount.refCount());
-//
-//        assertEquals(0L, cache.count());
-//        IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(shard) {
-//            @Override
-//            public long ramBytesUsed() {
-//                return 42;
-//            }
-//
-//            @Override
-//            public boolean isOpen() {
-//                return true;
-//            }
-//
-//            @Override
-//            public Object getCacheIdentity() {
-//                return shard;
-//            }
-//        };
-//        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getMultiDirectoryReader(), new BytesArray("foo"));
-//        assertEquals(1L, cache.count());
-//
-//        searcher.close();
-//        assertEquals(0, indicesService.indicesRefCount.refCount());
-//        assertEquals(0L, cache.count());
-//    }
+    // public void testCloseWhileOngoingRequestUsesRequestCache() throws Exception {
+    // Node node = startNode();
+    // IndicesService indicesService = node.injector().getInstance(IndicesService.class);
+    // assertEquals(1, indicesService.indicesRefCount.refCount());
+    //
+    // assertAcked(
+    // node.client()
+    // .admin()
+    // .indices()
+    // .prepareCreate("test")
+    // .setSettings(
+    // Settings.builder()
+    // .put(SETTING_NUMBER_OF_SHARDS, 1)
+    // .put(SETTING_NUMBER_OF_REPLICAS, 0)
+    // .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+    // )
+    // );
+    // node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
+    // OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
+    //
+    // assertEquals(2, indicesService.indicesRefCount.refCount());
+    //
+    // IndicesRequestCache cache = indicesService.indicesRequestCache;
+    //
+    // IndexService indexService = indicesService.iterator().next();
+    // IndexShard shard = indexService.getShard(0);
+    // Engine.Searcher searcher = shard.acquireSearcher("test");
+    // assertEquals(1, searcher.getIndexReader().maxDoc());
+    //
+    // node.close();
+    // assertEquals(1, indicesService.indicesRefCount.refCount());
+    //
+    // assertEquals(0L, cache.count());
+    // IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(shard) {
+    // @Override
+    // public long ramBytesUsed() {
+    // return 42;
+    // }
+    //
+    // @Override
+    // public boolean isOpen() {
+    // return true;
+    // }
+    //
+    // @Override
+    // public Object getCacheIdentity() {
+    // return shard;
+    // }
+    // };
+    // cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getMultiDirectoryReader(), new BytesArray("foo"));
+    // assertEquals(1L, cache.count());
+    //
+    // searcher.close();
+    // assertEquals(0, indicesService.indicesRefCount.refCount());
+    // assertEquals(0L, cache.count());
+    // }
 }

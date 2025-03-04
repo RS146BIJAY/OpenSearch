@@ -34,14 +34,10 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.MultiReader;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchLeafReader;
-import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.core.index.shard.ShardId;
-
-import java.io.IOException;
 
 /**
  * Utility class for shard operations

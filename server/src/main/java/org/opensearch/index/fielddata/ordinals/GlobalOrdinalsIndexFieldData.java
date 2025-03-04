@@ -33,14 +33,12 @@ package org.opensearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;

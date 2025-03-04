@@ -43,8 +43,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.lucene.store.ByteBuffersDataOutput;
-import org.opensearch.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
@@ -59,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.zip.CRC32;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;

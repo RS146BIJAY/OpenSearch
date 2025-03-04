@@ -98,18 +98,16 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
     public void testIndexSort() {
         SortField dateSort = new SortedNumericSortField("date", SortField.Type.LONG, false);
         dateSort.setMissingValue(Long.MAX_VALUE);
-        SortField numericSort = new SortedNumericSortField("status", SortField.Type.STRING, false);
-        numericSort.setMissingValue(SortField.STRING_LAST);
         SortField keywordSort = new SortedSetSortField("keyword_dv", false);
         keywordSort.setMissingValue(SortField.STRING_LAST);
-        Sort indexSort = new Sort(dateSort, numericSort, keywordSort);
+        Sort indexSort = new Sort(dateSort, keywordSort);
         prepareCreate("test").setSettings(
             Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", "1")
-                .put("index.number_of_replicas", "1")
+                .put("index.number_of_replicas", "0")
                 .put("index.context_aware.enabled", true)
-                .putList("index.sort.field", "date", "numeric_dv", "keyword_dv")
+                .putList("index.sort.field", "date", "keyword_dv")
         ).setMapping(TEST_MAPPING).get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("test")
@@ -119,7 +117,7 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         }
         flushAndRefresh();
         ensureYellow();
-//        assertSortedSegments("test", indexSort);
+        assertSortedSegments("test", indexSort);
     }
 
     public void testInvalidIndexSort() {

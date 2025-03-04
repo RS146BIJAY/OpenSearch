@@ -150,7 +150,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createIndex("test-idx-0");
         ensureGreen();
         for (int j = 0; j < 10; j++) {
-            index("test-idx-0", "_doc", Integer.toString(10 + j), "foo", "bar" + 10 + j);
+            index("test-idx-0", "_doc", Integer.toString(10 + j), "status", "200");
         }
         refresh();
 
@@ -168,7 +168,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             createIndex(testIndexName);
             ensureGreen();
             for (int j = 0; j < 10; j++) {
-                index(testIndexName, "_doc", Integer.toString(10 + j), "foo", "bar" + 10 + j);
+                index(testIndexName, "_doc", Integer.toString(10 + j), "status", "400");
             }
             refresh();
 
@@ -358,7 +358,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createIndex(indexName);
         ensureGreen();
         for (int j = 0; j < randomIntBetween(1, 1000); j++) {
-            index(indexName, "_doc", Integer.toString(j), "foo", "bar" + j);
+            index(indexName, "_doc", Integer.toString(j), "status", "200");
         }
         refresh();
 
@@ -371,7 +371,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         for (int j = 0; j < randomIntBetween(100, 10000); ++j) {
             final BulkRequest bulkRequest = new BulkRequest();
             for (int i = 0; i < randomIntBetween(100, 1000); ++i) {
-                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+                bulkRequest.add(new IndexRequest(indexName).source("status", "400"));
             }
             client().bulk(bulkRequest).get();
         }
@@ -412,7 +412,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createIndex(indexName);
         ensureGreen();
         for (int j = 0; j < randomIntBetween(1, 1000); j++) {
-            index(indexName, "_doc", Integer.toString(j), "foo", "bar" + j);
+            index(indexName, "_doc", Integer.toString(j), "status", "400");
         }
         refresh();
 
@@ -423,7 +423,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         for (int j = 0; j < randomIntBetween(100, 1000); ++j) {
             final BulkRequest bulkRequest = new BulkRequest();
             for (int i = 0; i < randomIntBetween(100, 1000); ++i) {
-                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+                bulkRequest.add(new IndexRequest(indexName).source("status", "200"));
             }
             client().bulk(bulkRequest).get();
         }

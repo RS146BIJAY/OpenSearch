@@ -65,8 +65,11 @@ public class MatchPhraseQueryIT extends ParameterizedStaticSettingsOpenSearchInt
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false)
-                .put("indices.requests.cache.maximum_cacheable_size", 1000).build() },
+            new Object[] {
+                Settings.builder()
+                    .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false)
+                    .put("indices.requests.cache.maximum_cacheable_size", 1000)
+                    .build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
     }
@@ -91,9 +94,9 @@ public class MatchPhraseQueryIT extends ParameterizedStaticSettingsOpenSearchInt
 
         MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("status", "200").analyzer("standard_stopwords");
 
-//        MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
-//        SearchResponse matchNoneResponse = client().prepareSearch(INDEX).setQuery(matchNoneQuery).get();
-//        assertHitCount(matchNoneResponse, 0L);
+        // MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
+        // SearchResponse matchNoneResponse = client().prepareSearch(INDEX).setQuery(matchNoneQuery).get();
+        // assertHitCount(matchNoneResponse, 0L);
 
         MatchPhraseQueryBuilder matchAllQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.ALL);
         SearchResponse matchAllResponse = client().prepareSearch(INDEX).setQuery(matchAllQuery).get();

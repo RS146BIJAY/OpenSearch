@@ -682,8 +682,8 @@ public final class IndexModule {
         Consumer<IndexShard> replicator
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
-        Function<IndexService, CheckedFunction<OpenSearchMultiReader, OpenSearchMultiReader, IOException>> readerWrapperFactory = indexReaderWrapper
-            .get() == null ? (shard) -> null : indexReaderWrapper.get();
+        Function<IndexService, CheckedFunction<OpenSearchMultiReader, OpenSearchMultiReader, IOException>> readerWrapperFactory =
+            indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);

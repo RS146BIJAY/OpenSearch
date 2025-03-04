@@ -8,7 +8,6 @@
 
 package org.opensearch.search.aggregations;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;

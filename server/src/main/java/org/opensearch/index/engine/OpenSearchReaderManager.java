@@ -73,10 +73,14 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchMultiReader> {
     @Override
     protected OpenSearchMultiReader refreshIfNeeded(OpenSearchMultiReader referenceToRefresh) throws IOException {
         final Map<String, DirectoryReader> subReadersMap = new HashMap<>();
-        for (Map.Entry<String, DirectoryReader> readerCriteriaEntry: referenceToRefresh.getSubReadersCriteriaMap().entrySet()) {
+        for (Map.Entry<String, DirectoryReader> readerCriteriaEntry : referenceToRefresh.getSubReadersCriteriaMap().entrySet()) {
             DirectoryReader refreshedReader = DirectoryReader.openIfChanged(readerCriteriaEntry.getValue());
             if (refreshedReader != null) {
                 subReadersMap.put(readerCriteriaEntry.getKey(), refreshedReader);
+            } else {
+                // Increase the reference count here so that
+                readerCriteriaEntry.getValue().incRef();
+                subReadersMap.put(readerCriteriaEntry.getKey(), readerCriteriaEntry.getValue());
             }
         }
 

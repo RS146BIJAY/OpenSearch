@@ -110,7 +110,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -210,12 +209,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         if (criteriaDirectoryMapping != null) {
-            multiTenantDirectory = new CriteriaBasedCompositeDirectory(multiTenantDirectory,criteriaDirectoryMapping);
+            multiTenantDirectory = new CriteriaBasedCompositeDirectory(multiTenantDirectory, criteriaDirectoryMapping);
             this.directoryMapping = new HashMap<>(criteriaDirectoryMapping.size());
             criteriaDirectoryMapping.keySet().forEach(criteria -> {
-                directoryMapping.put(criteria,
-                    new StoreDirectory(new ByteSizeCachingDirectory(criteriaDirectoryMapping.get(criteria), refreshInterval),
-                        Loggers.getLogger("index.store.deletes", shardId)));
+                directoryMapping.put(
+                    criteria,
+                    new StoreDirectory(
+                        new ByteSizeCachingDirectory(criteriaDirectoryMapping.get(criteria), refreshInterval),
+                        Loggers.getLogger("index.store.deletes", shardId)
+                    )
+                );
             });
         } else {
             this.directoryMapping = null;
@@ -1809,19 +1812,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (indexSettings.isContextAwareEnabled()) {
                 updateCommitData(w2, map);
                 updateCommitData(w4, map);
-                try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
-                    StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)) {
+                try (
+                    StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
+                    StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)
+                ) {
                     Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                     segmentsCriteriaMap.put("200", r1.getSegmentInfos());
                     segmentsCriteriaMap.put("400", r2.getSegmentInfos());
-                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                 }
             } else {
                 updateCommitData(writer, map);
-                try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
+                try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
                     Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                     segmentsCriteriaMap.put("-1", r1.getSegmentInfos());
-                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                 }
             }
         } finally {
@@ -1892,19 +1897,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (indexSettings.isContextAwareEnabled()) {
                 updateCommitData(w2, map);
                 updateCommitData(w4, map);
-                try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
-                    StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)) {
+                try (
+                    StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
+                    StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)
+                ) {
                     Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                     segmentsCriteriaMap.put("200", r1.getSegmentInfos());
                     segmentsCriteriaMap.put("400", r2.getSegmentInfos());
-                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                 }
             } else {
                 updateCommitData(writer, map);
-                try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
+                try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
                     Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                     segmentsCriteriaMap.put("-1", r1.getSegmentInfos());
-                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                 }
             }
         } finally {
@@ -1947,20 +1954,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (indexSettings.isContextAwareEnabled()) {
                 updateCommitData(w2, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
                 updateCommitData(w4, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
-                try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
-                    StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)) {
+                try (
+                    StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
+                    StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)
+                ) {
                     Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                     segmentsCriteriaMap.put("200", r1.getSegmentInfos());
                     segmentsCriteriaMap.put("400", r2.getSegmentInfos());
-                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                 }
 
             } else {
                 updateCommitData(writer, Collections.singletonMap(Translog.TRANSLOG_UUID_KEY, translogUUID));
-                try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
+                try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
                     Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                     segmentsCriteriaMap.put("-1", r1.getSegmentInfos());
-                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                    Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                 }
             }
         } finally {
@@ -2002,19 +2011,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 if (indexSettings.isContextAwareEnabled()) {
                     updateCommitData(w2, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
                     updateCommitData(w4, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
-                    try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
-                        StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)) {
+                    try (
+                        StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(w2);
+                        StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(w4)
+                    ) {
                         Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                         segmentsCriteriaMap.put("200", r1.getSegmentInfos());
                         segmentsCriteriaMap.put("400", r2.getSegmentInfos());
-                        Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                        Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                     }
                 } else {
                     updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
-                    try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
+                    try (StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(writer)) {
                         Map<String, SegmentInfos> segmentsCriteriaMap = new HashMap<>();
                         segmentsCriteriaMap.put("-1", r1.getSegmentInfos());
-                        Lucene.combineSegmentInfos(segmentsCriteriaMap, directory()).commit(directory);
+                        Lucene.combineSegmentInfos(segmentsCriteriaMap, directory(), true).commit(directory);
                     }
                 }
 

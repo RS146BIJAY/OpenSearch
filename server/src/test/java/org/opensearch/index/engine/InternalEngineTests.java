@@ -103,7 +103,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.lucene.uid.Versions;
@@ -3282,13 +3281,13 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-//    public void testExtractShardId() {
-//        try (Engine.Searcher test = this.engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-//            ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
-//            assertNotNull(shardId);
-//            assertEquals(shardId, engine.config().getShardId());
-//        }
-//    }
+    // public void testExtractShardId() {
+    // try (Engine.Searcher test = this.engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+    // ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
+    // assertNotNull(shardId);
+    // assertEquals(shardId, engine.config().getShardId());
+    // }
+    // }
 
     /**
      * Random test that throws random exception and ensures all references are
@@ -7801,84 +7800,84 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-//    public void testNotWarmUpSearcherInEngineCtor() throws Exception {
-//        try (Store store = createStore()) {
-//            List<OpenSearchDirectoryReader> warmedUpReaders = new ArrayList<>();
-//            Engine.Warmer warmer = reader -> {
-//                assertNotNull(reader);
-//                assertThat(reader, not(in(warmedUpReaders)));
-//                warmedUpReaders.add(reader);
-//            };
-//            EngineConfig config = engine.config();
-//            final TranslogConfig translogConfig = new TranslogConfig(
-//                config.getTranslogConfig().getShardId(),
-//                createTempDir(),
-//                config.getTranslogConfig().getIndexSettings(),
-//                config.getTranslogConfig().getBigArrays(),
-//                "",
-//                false
-//            );
-//            EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
-//                .threadPool(config.getThreadPool())
-//                .indexSettings(config.getIndexSettings())
-//                .warmer(warmer)
-//                .store(store)
-//                .mergePolicy(config.getMergePolicy())
-//                .analyzer(config.getAnalyzer())
-//                .similarity(config.getSimilarity())
-//                .codecService(new CodecService(null, config.getIndexSettings(), logger))
-//                .eventListener(config.getEventListener())
-//                .queryCache(config.getQueryCache())
-//                .queryCachingPolicy(config.getQueryCachingPolicy())
-//                .translogConfig(translogConfig)
-//                .flushMergesAfter(config.getFlushMergesAfter())
-//                .externalRefreshListener(config.getExternalRefreshListener())
-//                .internalRefreshListener(config.getInternalRefreshListener())
-//                .indexSort(config.getIndexSort())
-//                .circuitBreakerService(config.getCircuitBreakerService())
-//                .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
-//                .retentionLeasesSupplier(config.retentionLeasesSupplier())
-//                .primaryTermSupplier(config.getPrimaryTermSupplier())
-//                .tombstoneDocSupplier(config.getTombstoneDocSupplier())
-//                .build();
-//            try (InternalEngine engine = createEngine(configWithWarmer)) {
-//                assertThat(warmedUpReaders, empty());
-//                assertThat(
-//                    expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),
-//                    equalTo("searcher was not warmed up yet for source[test]")
-//                );
-//                int times = randomIntBetween(1, 10);
-//                for (int i = 0; i < times; i++) {
-//                    engine.refresh("test");
-//                }
-//                assertThat(warmedUpReaders, hasSize(1));
-//                try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-//                    try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-//                        assertSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
-//                        assertSame(warmedUpReaders.get(0), externalSearcher.getDirectoryReader());
-//                    }
-//                }
-//                index(engine, randomInt());
-//                if (randomBoolean()) {
-//                    engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-//                    assertThat(warmedUpReaders, hasSize(1));
-//                    try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-//                        try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-//                            assertNotSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
-//                        }
-//                    }
-//                }
-//                engine.refresh("test");
-//                assertThat(warmedUpReaders, hasSize(2));
-//                try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-//                    try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-//                        assertSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
-//                        assertSame(warmedUpReaders.get(1), externalSearcher.getDirectoryReader());
-//                    }
-//                }
-//            }
-//        }
-//    }
+    // public void testNotWarmUpSearcherInEngineCtor() throws Exception {
+    // try (Store store = createStore()) {
+    // List<OpenSearchDirectoryReader> warmedUpReaders = new ArrayList<>();
+    // Engine.Warmer warmer = reader -> {
+    // assertNotNull(reader);
+    // assertThat(reader, not(in(warmedUpReaders)));
+    // warmedUpReaders.add(reader);
+    // };
+    // EngineConfig config = engine.config();
+    // final TranslogConfig translogConfig = new TranslogConfig(
+    // config.getTranslogConfig().getShardId(),
+    // createTempDir(),
+    // config.getTranslogConfig().getIndexSettings(),
+    // config.getTranslogConfig().getBigArrays(),
+    // "",
+    // false
+    // );
+    // EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
+    // .threadPool(config.getThreadPool())
+    // .indexSettings(config.getIndexSettings())
+    // .warmer(warmer)
+    // .store(store)
+    // .mergePolicy(config.getMergePolicy())
+    // .analyzer(config.getAnalyzer())
+    // .similarity(config.getSimilarity())
+    // .codecService(new CodecService(null, config.getIndexSettings(), logger))
+    // .eventListener(config.getEventListener())
+    // .queryCache(config.getQueryCache())
+    // .queryCachingPolicy(config.getQueryCachingPolicy())
+    // .translogConfig(translogConfig)
+    // .flushMergesAfter(config.getFlushMergesAfter())
+    // .externalRefreshListener(config.getExternalRefreshListener())
+    // .internalRefreshListener(config.getInternalRefreshListener())
+    // .indexSort(config.getIndexSort())
+    // .circuitBreakerService(config.getCircuitBreakerService())
+    // .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+    // .retentionLeasesSupplier(config.retentionLeasesSupplier())
+    // .primaryTermSupplier(config.getPrimaryTermSupplier())
+    // .tombstoneDocSupplier(config.getTombstoneDocSupplier())
+    // .build();
+    // try (InternalEngine engine = createEngine(configWithWarmer)) {
+    // assertThat(warmedUpReaders, empty());
+    // assertThat(
+    // expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),
+    // equalTo("searcher was not warmed up yet for source[test]")
+    // );
+    // int times = randomIntBetween(1, 10);
+    // for (int i = 0; i < times; i++) {
+    // engine.refresh("test");
+    // }
+    // assertThat(warmedUpReaders, hasSize(1));
+    // try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+    // try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+    // assertSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
+    // assertSame(warmedUpReaders.get(0), externalSearcher.getDirectoryReader());
+    // }
+    // }
+    // index(engine, randomInt());
+    // if (randomBoolean()) {
+    // engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+    // assertThat(warmedUpReaders, hasSize(1));
+    // try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+    // try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+    // assertNotSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
+    // }
+    // }
+    // }
+    // engine.refresh("test");
+    // assertThat(warmedUpReaders, hasSize(2));
+    // try (Engine.Searcher internalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+    // try (Engine.Searcher externalSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+    // assertSame(internalSearcher.getDirectoryReader(), externalSearcher.getDirectoryReader());
+    // assertSame(warmedUpReaders.get(1), externalSearcher.getDirectoryReader());
+    // }
+    // }
+    // }
+    // }
+    // }
 
     public void testProducesStoredFieldsReader() throws Exception {
         // Make sure that the engine produces a SequentialStoredFieldsLeafReader.

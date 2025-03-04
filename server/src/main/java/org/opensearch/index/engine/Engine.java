@@ -326,16 +326,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
         if (searcher.getIndexReader() instanceof OpenSearchMultiReader) {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
-                (OpenSearchMultiReader)searcher.getIndexReader(),
+                (OpenSearchMultiReader) searcher.getIndexReader(),
                 uidTerm,
                 true
             );
         } else {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
-                searcher.getIndexReader(),
-                uidTerm,
-                true
-            );
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), uidTerm, true);
         }
 
         assert docIdAndVersion != null;

@@ -147,7 +147,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Executor executor,
         SearchContext searchContext
     ) throws IOException {
-        super(wrapWithExitableDirectoryReader ? wrapExitableDirectoryReader((OpenSearchMultiReader) reader, cancellable) : reader, executor);
+        super(
+            wrapWithExitableDirectoryReader ? wrapExitableDirectoryReader((OpenSearchMultiReader) reader, cancellable) : reader,
+            executor
+        );
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -155,9 +158,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.searchContext = searchContext;
     }
 
-    private static OpenSearchMultiReader wrapExitableDirectoryReader(OpenSearchMultiReader openSearchMultiReader, MutableQueryTimeout cancellable) throws IOException {
+    private static OpenSearchMultiReader wrapExitableDirectoryReader(
+        OpenSearchMultiReader openSearchMultiReader,
+        MutableQueryTimeout cancellable
+    ) throws IOException {
         final Map<String, DirectoryReader> subReaderMap = new HashMap<>();
-        for (Map.Entry<String, DirectoryReader> readerEntry: openSearchMultiReader.getSubReadersCriteriaMap().entrySet()) {
+        for (Map.Entry<String, DirectoryReader> readerEntry : openSearchMultiReader.getSubReadersCriteriaMap().entrySet()) {
             DirectoryReader subReader = readerEntry.getValue();
             assert subReader instanceof OpenSearchDirectoryReader;
             subReaderMap.put(readerEntry.getKey(), new ExitableDirectoryReader((OpenSearchDirectoryReader) subReader, cancellable));

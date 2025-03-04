@@ -33,10 +33,8 @@
 package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -65,7 +63,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
@@ -91,7 +88,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -123,7 +119,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -197,7 +192,7 @@ public class InternalEngine extends Engine {
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     private final CompletionStatsCache completionStatsCache;
-//    private final Map<String, IndexWriter> criteriaBasedIndexWriters = new HashMap<>();
+    // private final Map<String, IndexWriter> criteriaBasedIndexWriters = new HashMap<>();
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
@@ -263,10 +258,19 @@ public class InternalEngine extends Engine {
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
             if (engineConfig.isContextAwareEnabled()) {
-                mergeSchedulerCriteriaMap.put("200", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "200"));
-                mergeSchedulerCriteriaMap.put("400", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "400"));
+                mergeSchedulerCriteriaMap.put(
+                    "200",
+                    new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "200")
+                );
+                mergeSchedulerCriteriaMap.put(
+                    "400",
+                    new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "400")
+                );
             } else {
-                mergeSchedulerCriteriaMap.put("-1", new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "-1"));
+                mergeSchedulerCriteriaMap.put(
+                    "-1",
+                    new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), "-1")
+                );
             }
 
             throttle = new IndexThrottle();
@@ -314,45 +318,62 @@ public class InternalEngine extends Engine {
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
 
                 if (engineConfig.isContextAwareEnabled()) {
-                    childLevelCombinedDeletionPolicyMap.put("200", new CombinedDeletionPolicy(
-                        logger,
-                        translogDeletionPolicy,
-                        softDeletesPolicy,
-                        translogManager::getLastSyncedGlobalCheckpoint
-                    ));
-                    childLevelCombinedDeletionPolicyMap.put("400", new CombinedDeletionPolicy(
-                        logger,
-                        translogDeletionPolicy,
-                        softDeletesPolicy,
-                        translogManager::getLastSyncedGlobalCheckpoint
-                    ));
+                    childLevelCombinedDeletionPolicyMap.put(
+                        "200",
+                        new CombinedDeletionPolicy(
+                            logger,
+                            translogDeletionPolicy,
+                            softDeletesPolicy,
+                            translogManager::getLastSyncedGlobalCheckpoint
+                        )
+                    );
+                    childLevelCombinedDeletionPolicyMap.put(
+                        "400",
+                        new CombinedDeletionPolicy(
+                            logger,
+                            translogDeletionPolicy,
+                            softDeletesPolicy,
+                            translogManager::getLastSyncedGlobalCheckpoint
+                        )
+                    );
 
-                    criteriaBasedIndexWriters.put("200", createWriter(store.getDirectoryMapping().get("200"),
-                        getIndexWriterConfig("200")));
-                    criteriaBasedIndexWriters.put("400", createWriter(store.getDirectoryMapping().get("400"),
-                        getIndexWriterConfig("400")));
+                    criteriaBasedIndexWriters.put("200", createWriter(store.getDirectoryMapping().get("200"), getIndexWriterConfig("200")));
+                    criteriaBasedIndexWriters.put("400", createWriter(store.getDirectoryMapping().get("400"), getIndexWriterConfig("400")));
 
-                    try(StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("200"));
-                        StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(criteriaBasedIndexWriters.get("400"))) {
-                        Map<String, SegmentInfos> segmentInfosCriteriaMap = new HashMap<>();
-                        segmentInfosCriteriaMap.put("200", r1.getSegmentInfos());
-                        segmentInfosCriteriaMap.put("400", r2.getSegmentInfos());
-                        Lucene.combineSegmentInfos(segmentInfosCriteriaMap, store.directory()).commit(store.directory());
-                    }
+//                    try (
+//                        StandardDirectoryReader r1 = (StandardDirectoryReader) StandardDirectoryReader.open(
+//                            criteriaBasedIndexWriters.get("200")
+//                        );
+//                        StandardDirectoryReader r2 = (StandardDirectoryReader) StandardDirectoryReader.open(
+//                            criteriaBasedIndexWriters.get("400")
+//                        )
+//                    ) {
+//                        Map<String, SegmentInfos> segmentInfosCriteriaMap = new HashMap<>();
+//                        segmentInfosCriteriaMap.put("200", r1.getSegmentInfos());
+//                        segmentInfosCriteriaMap.put("400", r2.getSegmentInfos());
+//                        Lucene.combineSegmentInfos(segmentInfosCriteriaMap, store.directory(), true).commit(store.directory());
+//                    }
                 } else {
-                    childLevelCombinedDeletionPolicyMap.put("-1", new CombinedDeletionPolicy(
-                        logger,
-                        translogDeletionPolicy,
-                        softDeletesPolicy,
-                        translogManager::getLastSyncedGlobalCheckpoint
-                    ));
+                    childLevelCombinedDeletionPolicyMap.put(
+                        "-1",
+                        new CombinedDeletionPolicy(
+                            logger,
+                            translogDeletionPolicy,
+                            softDeletesPolicy,
+                            translogManager::getLastSyncedGlobalCheckpoint
+                        )
+                    );
 
-                    criteriaBasedIndexWriters.put("-1", createWriter(store.getDirectoryMapping().get("-1"),
-                        getIndexWriterConfig("-1")));
+                    criteriaBasedIndexWriters.put("-1", createWriter(store.getDirectoryMapping().get("-1"), getIndexWriterConfig("-1")));
                 }
 
-                this.combinedView = new ContextAwareIndexWriterReadOnlyCombinedView(mergeSchedulerCriteriaMap,
-                    childLevelCombinedDeletionPolicyMap, criteriaBasedIndexWriters, store.directory(), shardId);
+                this.combinedView = new ContextAwareIndexWriterReadOnlyCombinedView(
+                    mergeSchedulerCriteriaMap,
+                    childLevelCombinedDeletionPolicyMap,
+                    criteriaBasedIndexWriters,
+                    store.directory(),
+                    shardId
+                );
                 bootstrapAppendOnlyInfoFromSegmentInfos(combinedView);
                 final Map<String, String> commitData = commitDataAsMap(combinedView);
                 historyUUID = loadHistoryUUID(commitData);
@@ -369,7 +390,7 @@ public class InternalEngine extends Engine {
                 }
             }
 
-//            handling readers??
+            // handling readers??
             externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig));
             internalReaderManager = externalReaderManager.internalReaderManager;
             this.internalReaderManager = internalReaderManager;
@@ -415,66 +436,66 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-//    private void populateLatestSegmentInfos(IndexWriterConfig config) throws IOException {
-//        final boolean indexExists;
-//        final boolean create;
-//        IndexWriterConfig.OpenMode mode = config.getOpenMode();
-//        SegmentInfos segmentInfos;
-//        if (mode == IndexWriterConfig.OpenMode.CREATE) {
-//            indexExists = DirectoryReader.indexExists(store.directory());
-//            create = true;
-//        } else if (mode == IndexWriterConfig.OpenMode.APPEND) {
-//            indexExists = true;
-//            create = false;
-//        } else {
-//            // CREATE_OR_APPEND - create only if an index does not exist
-//            indexExists = DirectoryReader.indexExists(store.directory());
-//            create = !indexExists;
-//        }
-//
-//        String[] files = store.directory().listAll();
-//
-//        if (create) {
-//            final SegmentInfos sis = new SegmentInfos(config.getIndexCreatedVersionMajor());
-//            if (indexExists) {
-//                final SegmentInfos previous = SegmentInfos.readLatestCommit(store.directory());
-//                sis.updateGenerationVersionAndCounter(previous);
-//            }
-//            segmentInfos = sis;
-//            rollbackSegments = segmentInfos.createBackupSegmentInfos();
-//        } else {
-//            String lastSegmentsFile = SegmentInfos.getLastCommitSegmentsFileName(files);
-//            if (lastSegmentsFile == null) {
-//                throw new IndexNotFoundException(
-//                    "no segments* file found in " + store.directory() + ": files: " + Arrays.toString(files));
-//            }
-//
-//            // Do not use SegmentInfos.read(Directory) since the spooky
-//            // retrying it does is not necessary here (we hold the write lock):
-//            segmentInfos = SegmentInfos.readCommit(store.directory(), lastSegmentsFile);
-//
-//            if (commit != null) {
-//                // Swap out all segments, but, keep metadata in
-//                // SegmentInfos, like version & generation, to
-//                // preserve write-once.  This is important if
-//                // readers are open against the future commit
-//                // points.
-//                if (commit.getDirectory() != directoryOrig) {
-//                    throw new IllegalArgumentException(
-//                        "IndexCommit's directory doesn't match my directory, expected="
-//                            + directoryOrig
-//                            + ", got="
-//                            + commit.getDirectory());
-//                }
-//
-//                SegmentInfos oldInfos =
-//                    SegmentInfos.readCommit(directoryOrig, commit.getSegmentsFileName());
-//                segmentInfos.replace(oldInfos);
-//            }
-//
-//            rollbackSegments = segmentInfos.createBackupSegmentInfos();
-//        }
-//    }
+    // private void populateLatestSegmentInfos(IndexWriterConfig config) throws IOException {
+    // final boolean indexExists;
+    // final boolean create;
+    // IndexWriterConfig.OpenMode mode = config.getOpenMode();
+    // SegmentInfos segmentInfos;
+    // if (mode == IndexWriterConfig.OpenMode.CREATE) {
+    // indexExists = DirectoryReader.indexExists(store.directory());
+    // create = true;
+    // } else if (mode == IndexWriterConfig.OpenMode.APPEND) {
+    // indexExists = true;
+    // create = false;
+    // } else {
+    // // CREATE_OR_APPEND - create only if an index does not exist
+    // indexExists = DirectoryReader.indexExists(store.directory());
+    // create = !indexExists;
+    // }
+    //
+    // String[] files = store.directory().listAll();
+    //
+    // if (create) {
+    // final SegmentInfos sis = new SegmentInfos(config.getIndexCreatedVersionMajor());
+    // if (indexExists) {
+    // final SegmentInfos previous = SegmentInfos.readLatestCommit(store.directory());
+    // sis.updateGenerationVersionAndCounter(previous);
+    // }
+    // segmentInfos = sis;
+    // rollbackSegments = segmentInfos.createBackupSegmentInfos();
+    // } else {
+    // String lastSegmentsFile = SegmentInfos.getLastCommitSegmentsFileName(files);
+    // if (lastSegmentsFile == null) {
+    // throw new IndexNotFoundException(
+    // "no segments* file found in " + store.directory() + ": files: " + Arrays.toString(files));
+    // }
+    //
+    // // Do not use SegmentInfos.read(Directory) since the spooky
+    // // retrying it does is not necessary here (we hold the write lock):
+    // segmentInfos = SegmentInfos.readCommit(store.directory(), lastSegmentsFile);
+    //
+    // if (commit != null) {
+    // // Swap out all segments, but, keep metadata in
+    // // SegmentInfos, like version & generation, to
+    // // preserve write-once. This is important if
+    // // readers are open against the future commit
+    // // points.
+    // if (commit.getDirectory() != directoryOrig) {
+    // throw new IllegalArgumentException(
+    // "IndexCommit's directory doesn't match my directory, expected="
+    // + directoryOrig
+    // + ", got="
+    // + commit.getDirectory());
+    // }
+    //
+    // SegmentInfos oldInfos =
+    // SegmentInfos.readCommit(directoryOrig, commit.getSegmentsFileName());
+    // segmentInfos.replace(oldInfos);
+    // }
+    //
+    // rollbackSegments = segmentInfos.createBackupSegmentInfos();
+    // }
+    // }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier
@@ -645,7 +666,7 @@ public class InternalEngine extends Engine {
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() {
         try {
-            for (String criteria: criteriaBasedIndexWriters.keySet()) {
+            for (String criteria : criteriaBasedIndexWriters.keySet()) {
                 if (childLevelCombinedDeletionPolicyMap.get(criteria).hasUnreferencedCommits()) {
                     criteriaBasedIndexWriters.get(criteria).deleteUnusedFiles();
                 }
@@ -686,7 +707,11 @@ public class InternalEngine extends Engine {
                 return externalReaderManager;
             } catch (IOException e) {
                 maybeFailEngine("start", e);
-                combinedView.rollback();
+                try {
+                    combinedView.rollback();
+                } catch (IOException inner) { // iw is closed below
+                    e.addSuppressed(inner);
+                }
                 throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
             }
         } finally {
@@ -829,7 +854,7 @@ public class InternalEngine extends Engine {
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
                 DocIdAndSeqNo docAndSeqNo;
                 if (searcher.getIndexReader() instanceof OpenSearchMultiReader) {
-                    docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo((OpenSearchMultiReader)searcher.getIndexReader(), op.uid());
+                    docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo((OpenSearchMultiReader) searcher.getIndexReader(), op.uid());
                 } else {
                     docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), op.uid());
                 }
@@ -859,7 +884,11 @@ public class InternalEngine extends Engine {
             final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
                 if (searcher.getIndexReader() instanceof OpenSearchMultiReader) {
-                    docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion((OpenSearchMultiReader) searcher.getIndexReader(), op.uid(), loadSeqNo);
+                    docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+                        (OpenSearchMultiReader) searcher.getIndexReader(),
+                        op.uid(),
+                        loadSeqNo
+                    );
                 } else {
                     docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo);
                 }
@@ -1291,21 +1320,23 @@ public class InternalEngine extends Engine {
 
     private String getGroupingCriteriaForDoc(final Iterable<? extends Iterable<? extends IndexableField>> docs) {
         Iterator<? extends IndexableField> docIt = docs.iterator().next().iterator();
-        while (docIt.hasNext()) {
-            IndexableField field = docIt.next();
-            if (field.name().equals("status")) {
-                long statusCode = -1;
-                if (field.stringValue() != null) {
-                    statusCode = Integer.parseInt(field.stringValue())/100;
-                } else if (field.binaryValue() != null) {
-                    statusCode = LongPoint.decodeDimension(field.binaryValue().bytes, 0);
-                }
+        if (config().isContextAwareEnabled()) {
+            while (docIt.hasNext()) {
+                IndexableField field = docIt.next();
+                if (field.name().equals("status")) {
+                    long statusCode = -1;
+                    if (field.stringValue() != null) {
+                        statusCode = Integer.parseInt(field.stringValue()) / 100;
+                    } else if (field.binaryValue() != null) {
+                        statusCode = LongPoint.decodeDimension(field.binaryValue().bytes, 0);
+                    }
 
-                // TODO: Fix this
-                if (statusCode > 0 && statusCode <= 3) {
-                    return "200";
-                } else {
-                    return "400";
+                    // TODO: Fix this
+                    if (statusCode > 0 && statusCode <= 3) {
+                        return "200";
+                    } else {
+                        return "400";
+                    }
                 }
             }
         }
@@ -1718,11 +1749,11 @@ public class InternalEngine extends Engine {
                 + " ]";
             doc.add(softDeletesField);
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
-                for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
                     indexWriter.addDocument(doc);
                 }
             } else {
-                for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
                     indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
                 }
             }
@@ -1985,7 +2016,7 @@ public class InternalEngine extends Engine {
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
         maybePruneDeletes();
-        for (OpenSearchConcurrentMergeScheduler mergeScheduler: mergeSchedulerCriteriaMap.values()) {
+        for (OpenSearchConcurrentMergeScheduler mergeScheduler : mergeSchedulerCriteriaMap.values()) {
             mergeScheduler.refreshConfig();
         }
 
@@ -2035,8 +2066,55 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                for (IndexWriter writer: criteriaBasedIndexWriters.values()) {
-                    commitIndexWriter(force, writer);
+                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
+                // newly created commit points to a different translog generation (can free translog),
+                // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
+                boolean hasUncommittedChanges = combinedView.hasUncommittedChanges();
+                boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
+                if (hasUncommittedChanges
+                    || force
+                    || shouldPeriodicallyFlush
+                    || getProcessedLocalCheckpoint() > Long.parseLong(
+                        lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    )) {
+                    translogManager.ensureCanFlush();
+                    try {
+                        translogManager.rollTranslogGeneration();
+                        logger.trace("starting commit for flush; commitTranslog=true");
+                        // with Segment Replication we need to hold the latest commit before a new one is created and ensure it is released
+                        // only after the active reader is updated. This ensures that a flush does not wipe out a required commit point file
+                        // while we are
+                        // in refresh listeners.
+                        final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode()
+                            ? acquireLastIndexCommit(false)
+                            : null;
+                        commitCombinedView(combinedView, translogManager.getTranslogUUID());
+                        logger.trace("finished commit for flush");
+
+                        // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
+                        logger.debug(
+                            "new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
+                            hasUncommittedChanges,
+                            force,
+                            shouldPeriodicallyFlush
+                        );
+
+                        // we need to refresh in order to clear older version values
+                        refresh("version_table_flush", SearcherScope.INTERNAL, true);
+
+                        if (latestCommit != null) {
+                            latestCommit.close();
+                        }
+
+                        translogManager.trimUnreferencedReaders();
+                    } catch (AlreadyClosedException e) {
+                        failOnTragicEvent(e);
+                        throw e;
+                    } catch (Exception e) {
+                        throw new FlushFailedEngineException(shardId, e);
+                    }
+                    refreshLastCommittedSegmentInfos();
+
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
@@ -2052,57 +2130,9 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void commitIndexWriter(boolean force, IndexWriter indexWriter) {
-        // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
-        // newly created commit points to a different translog generation (can free translog),
-        // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
-        boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-        boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
-        if (hasUncommittedChanges
-            || force
-            || shouldPeriodicallyFlush
-            || getProcessedLocalCheckpoint() > Long.parseLong(
-            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-        )) {
-            translogManager.ensureCanFlush();
-            try {
-                translogManager.rollTranslogGeneration();
-                logger.trace("starting commit for flush; commitTranslog=true");
-                // with Segment Replication we need to hold the latest commit before a new one is created and ensure it is released
-                // only after the active reader is updated. This ensures that a flush does not wipe out a required commit point file
-                // while we are
-                // in refresh listeners.
-                final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode()
-                    ? acquireLastIndexCommit(false)
-                    : null;
-                commitIndexWriter(indexWriter, translogManager.getTranslogUUID());
-                logger.trace("finished commit for flush");
+//    DO it for common instead of individual as translog generataion is not per commit but per index writer commit.
+    private void commitIndexWriterUtil(boolean force, IndexWriter indexWriter) {
 
-                // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                logger.debug(
-                    "new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
-                    hasUncommittedChanges,
-                    force,
-                    shouldPeriodicallyFlush
-                );
-
-                // we need to refresh in order to clear older version values
-                refresh("version_table_flush", SearcherScope.INTERNAL, true);
-
-                if (latestCommit != null) {
-                    latestCommit.close();
-                }
-
-                translogManager.trimUnreferencedReaders();
-            } catch (AlreadyClosedException e) {
-                failOnTragicEvent(e);
-                throw e;
-            } catch (Exception e) {
-                throw new FlushFailedEngineException(shardId, e);
-            }
-            refreshLastCommittedSegmentInfos();
-
-        }
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2180,9 +2210,8 @@ public class InternalEngine extends Engine {
         final boolean upgradeOnlyAncientSegments,
         final String forceMergeUUID
     ) throws EngineException, IOException {
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
-            forceMergeUtil(indexWriter, flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments,
-                forceMergeUUID);
+        for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
+            forceMergeUtil(indexWriter, flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments, forceMergeUUID);
         }
     }
 
@@ -2284,7 +2313,7 @@ public class InternalEngine extends Engine {
 
     private Map<String, IndexCommit> getLastIndexCommits(boolean acquireSafeCommit) {
         final Map<String, IndexCommit> indexCommits = new HashMap<>();
-        for (Map.Entry<String, CombinedDeletionPolicy> entry: childLevelCombinedDeletionPolicyMap.entrySet()) {
+        for (Map.Entry<String, CombinedDeletionPolicy> entry : childLevelCombinedDeletionPolicyMap.entrySet()) {
             CombinedDeletionPolicy combinedDeletionPolicy = entry.getValue();
             final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(acquireSafeCommit);
             indexCommits.put(entry.getKey(), lastCommit);
@@ -2305,7 +2334,7 @@ public class InternalEngine extends Engine {
             childLevelSegmentInfosCriteriaMap.put(lastCommitEntry.getKey(), currentInfos);
         }
 
-        final SegmentInfos combinedInfos = Lucene.combineSegmentInfos(childLevelSegmentInfosCriteriaMap, store.directory());
+        final SegmentInfos combinedInfos = Lucene.combineSegmentInfos(childLevelSegmentInfosCriteriaMap, store.directory(), true);
         return Lucene.getCombinedIndexCommit(combinedInfos, store.directory(), generationList);
     }
 
@@ -2318,9 +2347,8 @@ public class InternalEngine extends Engine {
 
     private void releaseIndexCommit(Map<String, IndexCommit> snapshotList, Set<String> criteriaList) throws IOException {
         assert snapshotList.size() == criteriaList.size();
-        int i = 0;
-        for (String criteria: criteriaList) {
-            final IndexCommit snapshot = snapshotList.get(i++);
+        for (String criteria : criteriaList) {
+            final IndexCommit snapshot = snapshotList.get(criteria);
             CombinedDeletionPolicy combinedDeletionPolicy = childLevelCombinedDeletionPolicyMap.get(criteria);
             IndexWriter indexWriter = criteriaBasedIndexWriters.get(criteria);
 
@@ -2341,7 +2369,7 @@ public class InternalEngine extends Engine {
     public SafeCommitInfo getSafeCommitInfo() {
         long localCheckpoint = -1L;
         int docCount = 0;
-        for (CombinedDeletionPolicy combinedDeletionPolicy: childLevelCombinedDeletionPolicyMap.values()) {
+        for (CombinedDeletionPolicy combinedDeletionPolicy : childLevelCombinedDeletionPolicyMap.values()) {
             SafeCommitInfo safeCommitInfo = combinedDeletionPolicy.getSafeCommitInfo();
             if (safeCommitInfo != null) {
                 localCheckpoint = Math.max(localCheckpoint, safeCommitInfo.localCheckpoint);
@@ -2381,7 +2409,7 @@ public class InternalEngine extends Engine {
     }
 
     private Throwable getTragicException() {
-        for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+        for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
             if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
                 return indexWriter.getTragicException();
             }
@@ -2401,14 +2429,12 @@ public class InternalEngine extends Engine {
         // throw and AssertionError if the tragic event condition is not met.
         if (e instanceof AlreadyClosedException) {
             return failOnTragicEvent((AlreadyClosedException) e);
-        } else if (e != null
-            && ((getTragicException() == e)
-                || (translogManager.getTragicExceptionIfClosed() == e))) {
-                    // this spot on - we are handling the tragic event exception here so we have to fail the engine
-                    // right away
-                    failEngine(source, e);
-                    return true;
-                }
+        } else if (e != null && ((getTragicException() == e) || (translogManager.getTragicExceptionIfClosed() == e))) {
+            // this spot on - we are handling the tragic event exception here so we have to fail the engine
+            // right away
+            failEngine(source, e);
+            return true;
+        }
         return false;
     }
 
@@ -2465,7 +2491,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
 
-            for (Map.Entry<String, OpenSearchConcurrentMergeScheduler> mergeSchedulerEntry: mergeSchedulerCriteriaMap.entrySet()) {
+            for (Map.Entry<String, OpenSearchConcurrentMergeScheduler> mergeSchedulerEntry : mergeSchedulerCriteriaMap.entrySet()) {
                 OpenSearchConcurrentMergeScheduler mergeScheduler = mergeSchedulerEntry.getValue();
                 String criteria = mergeSchedulerEntry.getKey();
                 // fill in the merges flag
@@ -2473,8 +2499,8 @@ public class InternalEngine extends Engine {
                 for (OnGoingMerge onGoingMerge : onGoingMerges) {
                     for (SegmentCommitInfo segmentInfoPerCommit : onGoingMerge.getMergedSegments()) {
                         for (Segment segment : segmentsArr) {
-                            if (segment.getName().equals(segmentInfoPerCommit.info.name) || segment.getName()
-                                .equals(criteria.concat("_").concat(segmentInfoPerCommit.info.name))) {
+                            if (segment.getName().equals(segmentInfoPerCommit.info.name)
+                                || segment.getName().equals(criteria.concat("_").concat(segmentInfoPerCommit.info.name))) {
                                 segment.mergeId = onGoingMerge.getId();
                                 break;
                             }
@@ -2514,7 +2540,7 @@ public class InternalEngine extends Engine {
                 }
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
-                for (IndexWriter indexWriter: criteriaBasedIndexWriters.values()) {
+                for (IndexWriter indexWriter : criteriaBasedIndexWriters.values()) {
                     try {
                         indexWriter.rollback();
                     } catch (AlreadyClosedException ex) {
@@ -2769,6 +2795,62 @@ public class InternalEngine extends Engine {
         }
     }
 
+    protected void commitCombinedView(final ContextAwareIndexWriterReadOnlyCombinedView combinedView, String translogUUID) throws IOException {
+        translogManager.ensureCanFlush();
+        try {
+            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            combinedView.setLiveCommitData(() -> {
+                /*
+                 * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
+                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different, we never want
+                 * the maximum sequence number to be less than the last sequence number to go into a Lucene commit, otherwise we run the
+                 * risk of re-using a sequence number for two different documents when restoring from this commit point and subsequently
+                 * writing new documents to the index. Since we only know which Lucene documents made it into the final commit after the
+                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
+                 * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
+                 */
+                final Map<String, String> commitData = new HashMap<>(7);
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                commitData.put(HISTORY_UUID_KEY, historyUUID);
+                commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
+                final String currentForceMergeUUID = forceMergeUUID;
+                if (currentForceMergeUUID != null) {
+                    commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
+                }
+                logger.trace("committing writer with commit data [{}]", commitData);
+                return commitData.entrySet().iterator();
+            }, true);
+            shouldPeriodicallyFlushAfterBigMerge.set(false);
+            combinedView.commit();
+        } catch (final Exception ex) {
+            try {
+                failEngine("lucene commit failed", ex);
+            } catch (final Exception inner) {
+                ex.addSuppressed(inner);
+            }
+            throw ex;
+        } catch (final AssertionError e) {
+            /*
+             * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
+             * throw FileNotFoundException or NoSuchFileException can also hit this.
+             */
+            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
+                try {
+                    failEngine("lucene commit failed", engineException);
+                } catch (final Exception inner) {
+                    engineException.addSuppressed(inner);
+                }
+                throw engineException;
+            } else {
+                throw e;
+            }
+        }
+    }
+
     /**
      * Commits the specified index writer.
      *
@@ -2833,7 +2915,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
-        for (OpenSearchConcurrentMergeScheduler mergeScheduler: mergeSchedulerCriteriaMap.values()) {
+        for (OpenSearchConcurrentMergeScheduler mergeScheduler : mergeSchedulerCriteriaMap.values()) {
             mergeScheduler.refreshConfig();
         }
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
@@ -2852,7 +2934,7 @@ public class InternalEngine extends Engine {
 
     public MergeStats getMergeStats() {
         MergeStats mergeStats = new MergeStats();
-        for (OpenSearchConcurrentMergeScheduler mergeScheduler: mergeSchedulerCriteriaMap.values()) {
+        for (OpenSearchConcurrentMergeScheduler mergeScheduler : mergeSchedulerCriteriaMap.values()) {
             mergeStats.add(mergeScheduler.stats());
         }
         return mergeStats;
@@ -3029,7 +3111,7 @@ public class InternalEngine extends Engine {
      */
     private static Map<String, String> commitDataAsMap(final ContextAwareIndexWriterReadOnlyCombinedView combinedView) {
         final Map<String, String> commitData = new HashMap<>(8);
-        for (Map.Entry<String, String> entry: combinedView.getUserData()) {
+        for (Map.Entry<String, String> entry : combinedView.getUserData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }
         return commitData;

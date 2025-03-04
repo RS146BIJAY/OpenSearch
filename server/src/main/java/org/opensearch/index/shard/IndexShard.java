@@ -2033,7 +2033,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private static OpenSearchMultiReader wrapMultiReaderNonClosing(OpenSearchMultiReader multiReader) throws IOException {
         Map<String, DirectoryReader> childReaderCriteriaMap = new HashMap<>();
-        for (Map.Entry<String, DirectoryReader> childReaderEntry: multiReader.getSubReadersCriteriaMap().entrySet()) {
+        for (Map.Entry<String, DirectoryReader> childReaderEntry : multiReader.getSubReadersCriteriaMap().entrySet()) {
             NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(childReaderEntry.getValue());
             childReaderCriteriaMap.put(childReaderEntry.getKey(), nonClosingReaderWrapper);
         }

@@ -1800,7 +1800,7 @@ public class IndicesService extends AbstractLifecycleComponent
             return false;
         }
 
-        for (String criteria: criteriaList) {
+        for (String criteria : criteriaList) {
             // We use the cacheKey of the index reader as a part of a key of the IndicesRequestCache.
             assert multiReader.getReaderCacheHelper(criteria) != null;
             if (!(multiReader.getReaderCacheHelper(criteria) instanceof DelegatingCacheHelper)) {

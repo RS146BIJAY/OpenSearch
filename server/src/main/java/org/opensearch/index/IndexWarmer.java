@@ -163,7 +163,7 @@ public final class IndexWarmer {
                 warmUpGlobalOrdinals.put(indexName, fieldType);
             }
             final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
-            for (DirectoryReader reader: multiReader.getSubReadersCriteriaMap().values()) {
+            for (DirectoryReader reader : multiReader.getSubReadersCriteriaMap().values()) {
                 for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
                     executor.execute(() -> {
                         try {

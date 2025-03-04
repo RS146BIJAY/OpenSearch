@@ -410,7 +410,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
-        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_CONTEXT_AWARE_ENABLED, true);
     }
 
     /**
@@ -514,7 +515,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("status", "400");
         }
         indexRandom(true, builders);
         flushAndRefresh(index);
@@ -711,7 +712,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         logger.info("--> creating index [{}]", indexName);
         createIndex(indexName, indexSettings);
         ensureGreen(indexName);
-        index(indexName, "_doc", "some_id", "foo", "bar");
+        index(indexName, "_doc", "some_id", "status", "400");
     }
 
     protected ActionFuture<AcknowledgedResponse> startDeleteSnapshot(String repoName, String snapshotName) {

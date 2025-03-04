@@ -216,7 +216,9 @@ import java.util.stream.Collectors;
 
 import reactor.util.annotation.NonNull;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.*;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CONTEXT_AWARE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
@@ -1569,7 +1571,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON).setRouting(id));
+                builders.add(
+                    client().prepareIndex()
+                        .setIndex(index)
+                        .setId(id)
+                        .setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON)
+                        .setRouting(id)
+                );
             }
         }
         Collections.shuffle(builders, random());

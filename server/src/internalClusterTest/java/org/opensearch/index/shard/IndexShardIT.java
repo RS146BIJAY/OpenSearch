@@ -31,7 +31,6 @@
 
 package org.opensearch.index.shard;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
@@ -146,9 +145,14 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
     }
 
     public void testLockTryingToDelete() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2)
-            .put("index.context_aware.enabled", true)
-            .put("index.number_of_replicas", 0).build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.context_aware.enabled", true)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
         ensureGreen();
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
@@ -176,9 +180,14 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
     }
 
     public void testDurableFlagHasEffect() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2)
-            .put("index.context_aware.enabled", true)
-            .put("index.number_of_replicas", 0).build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.context_aware.enabled", true)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("{\"status\" : \"400\"}", MediaTypeRegistry.JSON).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -240,8 +249,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
     public void testUpdatePriority() {
         assertAcked(
-            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 200)
-                .put("index.context_aware.enabled", true))
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 200).put("index.context_aware.enabled", true))
         );
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         assertEquals(200, indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
@@ -257,10 +268,17 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataDir().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
-        Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, idxPath).put("index.context_aware.enabled", true).build();
+        Settings idxSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
+            .put("index.context_aware.enabled", true)
+            .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
-        client().prepareIndex("test").setId("1").setSource("{\"status\" : \"400\"}", MediaTypeRegistry.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource("{\"status\" : \"400\"}", MediaTypeRegistry.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         SearchResponse response = client().prepareSearch("test").get();
         assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
@@ -273,8 +291,12 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.context_aware.enabled", true))
+                .setSettings(
+                    Settings.builder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.context_aware.enabled", true)
+                )
         );
         for (int i = 0; i < 50; i++) {
             client().prepareIndex("test").setSource("{\"status\" : \"400\"}", MediaTypeRegistry.JSON).get();
@@ -380,8 +402,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
     public void testMaybeFlush() throws Exception {
         createIndex(
             "test",
-            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                .put("index.context_aware.enabled", true).build()
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put("index.context_aware.enabled", true)
+                .build()
         );
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -513,9 +537,14 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
     }
 
     public void testStressMaybeFlushOrRollTranslogGeneration() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2)
-            .put("index.context_aware.enabled", true)
-            .put("index.number_of_replicas", 0).build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.context_aware.enabled", true)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -525,10 +554,16 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final Settings settings;
         if (flush) {
             // size of the operation plus the overhead of one generation.
-            settings = Settings.builder().put("index.translog.flush_threshold_size", "125b").put("index.context_aware.enabled", true).build();
+            settings = Settings.builder()
+                .put("index.translog.flush_threshold_size", "125b")
+                .put("index.context_aware.enabled", true)
+                .build();
         } else {
             // size of the operation plus header and footer
-            settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").put("index.context_aware.enabled", true).build();
+            settings = Settings.builder()
+                .put("index.translog.generation_threshold_size", "117b")
+                .put("index.context_aware.enabled", true)
+                .build();
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
         client().prepareIndex("test")
@@ -604,8 +639,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .build();
         final IndexService indexService = createIndex("test", settingsInitial);
         ensureGreen();
-        Settings settings = Settings.builder().put("index.translog.flush_threshold_size", "" + between(200, 300) + "b")
-            .put("index.context_aware.enabled", true).build();
+        Settings settings = Settings.builder()
+            .put("index.translog.flush_threshold_size", "" + between(200, 300) + "b")
+            .put("index.context_aware.enabled", true)
+            .build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
         final int numDocs = between(10, 100);
         for (int i = 0; i < numDocs; i++) {
@@ -627,16 +664,25 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
     }
 
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2)
-            .put("index.context_aware.enabled", true)
-            .put("index.number_of_replicas", 0).build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.context_aware.enabled", true)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
         client().prepareIndex("test").setId("0").setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON).get();
         client().prepareDelete("test", "0").get();
-        client().prepareIndex("test").setId("1").setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         CheckedFunction<OpenSearchMultiReader, OpenSearchMultiReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false, false);
@@ -758,8 +804,12 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
     public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
         createIndex(
             "test",
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-                .put("index.refresh_interval", -1).put("index.context_aware.enabled", true).build()
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put("index.refresh_interval", -1)
+                .put("index.context_aware.enabled", true)
+                .build()
         );
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -789,7 +839,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
         final long moreDocs = between(10, 20);
         for (int i = 0; i < moreDocs; i++) {
-            client().prepareIndex("test").setId(Long.toString(i + numDocs)).setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON).get();
+            client().prepareIndex("test")
+                .setId(Long.toString(i + numDocs))
+                .setSource("{\"status\": \"400\"}", MediaTypeRegistry.JSON)
+                .get();
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -843,8 +896,14 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
      */
     public void testNoOpEngineFactoryTakesPrecedence() {
         final String indexName = "closed-index";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).put("index.context_aware.enabled", true).build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put("index.context_aware.enabled", true)
+                .build()
+        );
         ensureGreen();
 
         assertAcked(client().admin().indices().prepareClose(indexName));

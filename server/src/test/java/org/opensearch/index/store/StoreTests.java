@@ -76,16 +76,13 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
@@ -110,7 +107,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -788,48 +784,48 @@ public class StoreTests extends OpenSearchTestCase {
         IOUtils.close(store);
     }
 
-//    public void testOnCloseCallback() throws IOException {
-//        final ShardId shardId = new ShardId(
-//            new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"),
-//            randomIntBetween(0, 100)
-//        );
-//        final AtomicInteger count = new AtomicInteger(0);
-//        final ShardLock lock = new DummyShardLock(shardId);
-//
-//        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), lock, theLock -> {
-//            assertEquals(shardId, theLock.getShardId());
-//            assertEquals(lock, theLock);
-//            count.incrementAndGet();
-//        }, null);
-//        assertEquals(count.get(), 0);
-//
-//        final int iters = randomIntBetween(1, 10);
-//        for (int i = 0; i < iters; i++) {
-//            store.close();
-//        }
-//
-//        assertEquals(count.get(), 1);
-//    }
+    // public void testOnCloseCallback() throws IOException {
+    // final ShardId shardId = new ShardId(
+    // new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"),
+    // randomIntBetween(0, 100)
+    // );
+    // final AtomicInteger count = new AtomicInteger(0);
+    // final ShardLock lock = new DummyShardLock(shardId);
+    //
+    // Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), lock, theLock -> {
+    // assertEquals(shardId, theLock.getShardId());
+    // assertEquals(lock, theLock);
+    // count.incrementAndGet();
+    // }, null);
+    // assertEquals(count.get(), 0);
+    //
+    // final int iters = randomIntBetween(1, 10);
+    // for (int i = 0; i < iters; i++) {
+    // store.close();
+    // }
+    //
+    // assertEquals(count.get(), 1);
+    // }
 
-//    public void testStoreShardPath() {
-//        final ShardId shardId = new ShardId("index", "_na_", 1);
-//        final Settings settings = Settings.builder()
-//            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-//            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
-//            .build();
-//        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
-//        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
-//        final Store store = new Store(
-//            shardId,
-//            IndexSettingsModule.newIndexSettings("index", settings),
-//            StoreTests.newDirectory(random()),
-//            new DummyShardLock(shardId),
-//            Store.OnClose.EMPTY,
-//            shardPath
-//        );
-//        assertEquals(shardPath, store.shardPath());
-//        store.close();
-//    }
+    // public void testStoreShardPath() {
+    // final ShardId shardId = new ShardId("index", "_na_", 1);
+    // final Settings settings = Settings.builder()
+    // .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+    // .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
+    // .build();
+    // final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+    // final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+    // final Store store = new Store(
+    // shardId,
+    // IndexSettingsModule.newIndexSettings("index", settings),
+    // StoreTests.newDirectory(random()),
+    // new DummyShardLock(shardId),
+    // Store.OnClose.EMPTY,
+    // shardPath
+    // );
+    // assertEquals(shardPath, store.shardPath());
+    // store.close();
+    // }
 
     public void testStoreStats() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);

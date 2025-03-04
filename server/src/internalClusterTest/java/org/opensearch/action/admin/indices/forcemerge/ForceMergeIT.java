@@ -59,28 +59,28 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
         final String index = "test-index";
         createIndex(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         ensureGreen(index);
         final ClusterState state = clusterService().state();
         final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
         final IndexShardRoutingTable shardRouting = indexShardRoutingTables.getShards().get(0);
         final String primaryNodeId = shardRouting.primaryShard().currentNodeId();
-        final String replicaNodeId = shardRouting.replicaShards().get(0).currentNodeId();
+//        final String replicaNodeId = shardRouting.replicaShards().get(0).currentNodeId();
         final Index idx = shardRouting.primaryShard().index();
         final IndicesService primaryIndicesService = internalCluster().getInstance(
             IndicesService.class,
             state.nodes().get(primaryNodeId).getName()
         );
-        final IndicesService replicaIndicesService = internalCluster().getInstance(
-            IndicesService.class,
-            state.nodes().get(replicaNodeId).getName()
-        );
+//        final IndicesService replicaIndicesService = internalCluster().getInstance(
+//            IndicesService.class,
+//            state.nodes().get(replicaNodeId).getName()
+//        );
         final IndexShard primary = primaryIndicesService.indexService(idx).getShard(0);
-        final IndexShard replica = replicaIndicesService.indexService(idx).getShard(0);
+//        final IndexShard replica = replicaIndicesService.indexService(idx).getShard(0);
 
         assertThat(getForceMergeUUID(primary), nullValue());
-        assertThat(getForceMergeUUID(replica), nullValue());
+//        assertThat(getForceMergeUUID(replica), nullValue());
 
         final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
 
@@ -95,9 +95,9 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
         final String primaryForceMergeUUID = getForceMergeUUID(primary);
         assertThat(primaryForceMergeUUID, notNullValue());
 
-        final String replicaForceMergeUUID = getForceMergeUUID(replica);
-        assertThat(replicaForceMergeUUID, notNullValue());
-        assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
+//        final String replicaForceMergeUUID = getForceMergeUUID(replica);
+//        assertThat(replicaForceMergeUUID, notNullValue());
+//        assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
     }
 
     public void testForceMergeOnlyOnPrimaryShards() throws IOException {

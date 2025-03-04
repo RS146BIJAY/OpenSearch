@@ -315,7 +315,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     ) throws Exception {
         final StringBuilder readerCacheKeyIdBuilder = new StringBuilder();
         final List<String> criteriaList = Lucene.getTenantsForQuery(request);
-        for (String criteria: criteriaList) {
+        for (String criteria : criteriaList) {
             assert reader.getReaderCacheHelper(criteria) != null;
             assert reader.getReaderCacheHelper(criteria) instanceof OpenSearchDirectoryReader.DelegatingCacheHelper;
 
@@ -353,10 +353,15 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
-    void invalidate(IndicesService.IndexShardCacheEntity cacheEntity, OpenSearchMultiReader reader, BytesReference cacheKey, ShardSearchRequest request) {
+    void invalidate(
+        IndicesService.IndexShardCacheEntity cacheEntity,
+        OpenSearchMultiReader reader,
+        BytesReference cacheKey,
+        ShardSearchRequest request
+    ) {
         final StringBuilder readerCacheKeyIdBuilder = new StringBuilder();
         final List<String> criteriaList = Lucene.getTenantsForQuery(request);
-        for (String criteria: criteriaList) {
+        for (String criteria : criteriaList) {
             assert reader.getReaderCacheHelper(criteria) instanceof OpenSearchDirectoryReader.DelegatingCacheHelper;
             OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper = (OpenSearchDirectoryReader.DelegatingCacheHelper) reader
                 .getReaderCacheHelper(criteria);
@@ -366,8 +371,9 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         }
 
         IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
-        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyIdBuilder.toString(),
-            System.identityHashCode(indexShard))));
+        cache.invalidate(
+            getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyIdBuilder.toString(), System.identityHashCode(indexShard)))
+        );
     }
 
     /**

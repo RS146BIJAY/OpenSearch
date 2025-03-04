@@ -31,10 +31,8 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -44,7 +42,6 @@ import org.opensearch.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.CriteriaBasedCompositeDirectory;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -65,11 +62,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -141,12 +134,15 @@ public class ReadOnlyEngine extends Engine {
                 assert directory != null;
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
-                for (Directory childDirectory: directory.getChildDirectoryList()) {
+                for (Directory childDirectory : directory.getChildDirectoryList()) {
                     indexWriterLockList.add(childDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME));
                 }
 
                 this.combinedView = new ContextAwareIndexWriterReadOnlyCombinedView(directory, shardId);
-                this.lastCommittedSegmentInfos = combinedView.getLatestSegmentInfos(isExtendedCompatibility(), this.minimumSupportedVersion);
+                this.lastCommittedSegmentInfos = combinedView.getLatestSegmentInfos(
+                    isExtendedCompatibility(),
+                    this.minimumSupportedVersion
+                );
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -154,7 +150,11 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
 
                 // TODO: Fix this.
-                this.indexCommit = Lucene.getCombinedIndexCommit(lastCommittedSegmentInfos, directory, combinedView.getChildLastGenerationList());
+                this.indexCommit = Lucene.getCombinedIndexCommit(
+                    lastCommittedSegmentInfos,
+                    directory,
+                    combinedView.getChildLastGenerationList()
+                );
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
                 readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";

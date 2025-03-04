@@ -33,7 +33,6 @@
 package org.opensearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
@@ -662,13 +661,31 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             Map<String, Directory> criteriaDirectoryMapping = new HashMap<>();
             if (this.indexSettings.isContextAwareEnabled()) {
-                criteriaDirectoryMapping.put("200", directoryFactory.newFSDirectory(path.resolveIndex().resolve("200"),
-                    this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING), this.indexSettings));
-                criteriaDirectoryMapping.put("400", directoryFactory.newFSDirectory(path.resolveIndex().resolve("400"),
-                    this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING), this.indexSettings));
+                criteriaDirectoryMapping.put(
+                    "200",
+                    directoryFactory.newFSDirectory(
+                        path.resolveIndex().resolve("200"),
+                        this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING),
+                        this.indexSettings
+                    )
+                );
+                criteriaDirectoryMapping.put(
+                    "400",
+                    directoryFactory.newFSDirectory(
+                        path.resolveIndex().resolve("400"),
+                        this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING),
+                        this.indexSettings
+                    )
+                );
             } else {
-                criteriaDirectoryMapping.put("-1", directoryFactory.newFSDirectory(path.resolveIndex().resolve("-1"),
-                    this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING), this.indexSettings));
+                criteriaDirectoryMapping.put(
+                    "-1",
+                    directoryFactory.newFSDirectory(
+                        path.resolveIndex().resolve("-1"),
+                        this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING),
+                        this.indexSettings
+                    )
+                );
             }
 
             store = new Store(

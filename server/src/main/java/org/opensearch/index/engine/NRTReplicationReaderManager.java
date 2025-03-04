@@ -66,7 +66,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
     @Override
     protected OpenSearchMultiReader refreshIfNeeded(OpenSearchMultiReader referenceToRefresh) throws IOException {
         final Map<String, DirectoryReader> readerCriteriaMap = new HashMap<>();
-        for (Map.Entry<String, DirectoryReader> readerCriteriaMapEntry: referenceToRefresh.getSubReadersCriteriaMap().entrySet()) {
+        for (Map.Entry<String, DirectoryReader> readerCriteriaMapEntry : referenceToRefresh.getSubReadersCriteriaMap().entrySet()) {
             assert readerCriteriaMapEntry.getValue() instanceof OpenSearchDirectoryReader;
             OpenSearchDirectoryReader directoryReaderToRefresh = (OpenSearchDirectoryReader) readerCriteriaMapEntry.getValue();
             Objects.requireNonNull(directoryReaderToRefresh);
@@ -130,7 +130,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
 
     public static OpenSearchMultiReader unwrapMultiReader(OpenSearchMultiReader multiReader) throws IOException {
         final Map<String, DirectoryReader> readerCriteriaMap = new HashMap<>();
-        for (Map.Entry<String, DirectoryReader> readerCriteriaEntry: multiReader.getSubReadersCriteriaMap().entrySet()) {
+        for (Map.Entry<String, DirectoryReader> readerCriteriaEntry : multiReader.getSubReadersCriteriaMap().entrySet()) {
             OpenSearchDirectoryReader reader = (OpenSearchDirectoryReader) readerCriteriaEntry.getValue();
             final DirectoryReader delegate = reader.getDelegate();
             if (delegate instanceof SoftDeletesDirectoryReaderWrapper) {

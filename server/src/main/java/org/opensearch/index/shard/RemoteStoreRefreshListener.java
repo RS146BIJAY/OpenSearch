@@ -82,7 +82,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS
     );
 
-    public static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
+    // Excluding segments file for common Directory.
+    public static final Set<String> EXCLUDE_FILES = Set.of("write.lock", "segments");
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;

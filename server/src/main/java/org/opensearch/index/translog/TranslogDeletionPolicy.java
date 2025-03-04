@@ -80,16 +80,16 @@ public abstract class TranslogDeletionPolicy {
     }
 
     public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
-//        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-//            throw new IllegalArgumentException(
-//                "local checkpoint of the safe commit can't go backwards: "
-//                    + "current ["
-//                    + this.localCheckpointOfSafeCommit
-//                    + "] new ["
-//                    + newCheckpoint
-//                    + "]"
-//            );
-//        }
+        // if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+        // throw new IllegalArgumentException(
+        // "local checkpoint of the safe commit can't go backwards: "
+        // + "current ["
+        // + this.localCheckpointOfSafeCommit
+        // + "] new ["
+        // + newCheckpoint
+        // + "]"
+        // );
+        // }
         this.localCheckpointOfSafeCommit.set(Math.max(newCheckpoint, localCheckpointOfSafeCommit.get()));
     }
 
