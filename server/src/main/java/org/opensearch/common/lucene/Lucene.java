@@ -110,6 +110,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Main lucene class.
@@ -213,6 +214,39 @@ public class Lucene {
         return numDocs;
     }
 
+    public static void commitCriteriaBasedSegmentInfos(SegmentInfos parentSegmentInfos, Directory directory) throws IOException {
+        final Map<String, SegmentInfos> criteriaBasedSegmentInfosMap = new HashMap<>();
+        final CriteriaBasedCompositeDirectory criteriaBasedCompositeDirectory = CriteriaBasedCompositeDirectory.unwrap(directory);
+        assert criteriaBasedCompositeDirectory != null;
+        Map<String, String> commitUserDataBuilder = new HashMap<>();
+        commitUserDataBuilder.putAll(parentSegmentInfos.getUserData());
+        for (Map.Entry<String, Directory> criteriaDirectoryEntry: criteriaBasedCompositeDirectory.getCriteriaDirectoryMapping().entrySet()) {
+            final String criteria = criteriaDirectoryEntry.getKey();
+            String lastCommittedSegmentNFileName = SegmentInfos.getLastCommitSegmentsFileName(directory);
+            final SegmentInfos sis;
+            if (lastCommittedSegmentNFileName == null) {
+                sis = new SegmentInfos(Version.LATEST.major);
+            } else {
+                sis = SegmentInfos.readCommit(directory, lastCommittedSegmentNFileName);
+                sis.clear();
+            }
+
+            sis.setUserData(commitUserDataBuilder, true);
+            criteriaBasedSegmentInfosMap.put(criteria, sis);
+        }
+
+        for (SegmentCommitInfo info : parentSegmentInfos) {
+            String criteria = info.info.name.split("\\$")[0];
+            String newSegName = info.info.name.split("\\$")[1];
+            criteriaBasedSegmentInfosMap.get(criteria).add(copySegmentAsIs(info, newSegName, criteriaBasedCompositeDirectory.getDirectory(criteria)));
+        }
+
+
+        for (String criteria : criteriaBasedSegmentInfosMap.keySet()) {
+            criteriaBasedSegmentInfosMap.get(criteria).commit(criteriaBasedCompositeDirectory.getDirectory(criteria));
+        }
+    }
+
     public static SegmentInfos combineSegmentInfos(Map<String, SegmentInfos> criteriaBasedSegmentInfosMap, Directory directory, boolean created)
         throws IOException {
         String lastCommittedSegmentNFileName = SegmentInfos.getLastCommitSegmentsFileName(directory);
@@ -221,6 +255,7 @@ public class Lucene {
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
             sis = SegmentInfos.readCommit(directory, lastCommittedSegmentNFileName);
+            sis.clear();
         }
 
         final List<SegmentCommitInfo> infos = new ArrayList<>();
@@ -234,6 +269,7 @@ public class Lucene {
                 infos.add(copySegmentAsIs(info, newSegName, directory));
             }
 
+            sis.version += currentInfos.version;
             // How to keep user data in sync across multi IndexWriter.
             sis.setUserData(currentInfos.getUserData(), false);
         }
@@ -269,7 +305,13 @@ public class Lucene {
             info.getId()
         );
 
-        newInfo.setFiles(info.info.files());
+        newInfo.setFiles(info.info.files().stream().map(file -> {
+            if (file.contains("$")) {
+                return file.split("\\$")[1];
+            } else {
+                return file;
+            }
+        }).collect(Collectors.toSet()));
         newInfoPerCommit.setFieldInfosFiles(info.getFieldInfosFiles());
         newInfoPerCommit.setDocValuesUpdatesFiles(info.getDocValuesUpdatesFiles());
         return newInfoPerCommit;
@@ -318,11 +360,12 @@ public class Lucene {
         for (Map.Entry<String, Long> entry : childIndexWriterGenerations.entrySet()) {
             String criteria = entry.getKey();
             long generation = entry.getValue();
+            Directory subChildDirectory = CriteriaBasedCompositeDirectory.unwrap(commit.getDirectory()).getDirectory(criteria);
             subCommits.put(
                 criteria,
                 getIndexCommit(
-                    readSegmentInfosUtil(CriteriaBasedCompositeDirectory.unwrap(commit.getDirectory()).getDirectory(criteria), generation),
-                    commit.getDirectory()
+                    readSegmentInfosUtil(subChildDirectory, generation),
+                    subChildDirectory
                 )
             );
         }
@@ -887,6 +930,16 @@ public class Lucene {
             this.childIndexWriterGenerations = childIndexWriterGenerations;
         }
 
+        @Override
+        public Collection<String> getFileNames() {
+            Collection<String> fileNameList = super.getFileNames();
+//            for (Map.Entry<String, Long> entry : childIndexWriterGenerations.entrySet()) {
+//                String criteria = entry.getKey();
+//                fileNameList.add(criteria + "$segments_" + entry.getValue());
+//            }
+            return fileNameList;
+        }
+
         public Map<String, Long> getChildIndexWriterGenerations() {
             return childIndexWriterGenerations;
         }
@@ -904,7 +957,7 @@ public class Lucene {
             segmentsFileName = infos.getSegmentsFileName();
             this.dir = dir;
             userData = infos.getUserData();
-            files = Collections.unmodifiableCollection(infos.files(true));
+            files = infos.files(true);
             generation = infos.getGeneration();
             segmentCount = infos.size();
         }

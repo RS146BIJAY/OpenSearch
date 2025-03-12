@@ -204,7 +204,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected IndexResponse indexSingleDoc(String indexName, boolean forceRefresh) {
         IndexRequestBuilder indexRequestBuilder = client().prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
-            .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5));
+            .setSource("status", "400");
         if (forceRefresh) {
             indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
@@ -216,7 +216,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             final IndexRequest request = client().prepareIndex(indexName)
                 .setId(UUIDs.randomBase64UUID())
-                .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
+                .setSource("status", "200")
                 .request();
             bulkRequest.add(request);
         }

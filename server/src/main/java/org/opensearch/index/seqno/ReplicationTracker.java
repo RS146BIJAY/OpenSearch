@@ -1308,6 +1308,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && shouldSkipReplicationTimer(e.getKey()) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
                     && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)) {
+                    System.out.println("Starting replication timer" + latestReplicationCheckpoint);
                     cps.checkpointTimers.get(latestReplicationCheckpoint).start();
                 }
             });

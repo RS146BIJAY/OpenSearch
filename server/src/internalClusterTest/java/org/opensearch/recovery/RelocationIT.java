@@ -127,7 +127,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         return replicationSettings;
     }
 
-    private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
+    private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(1, TimeUnit.MINUTES);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -219,7 +219,8 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", numberOfReplicas)).get();
+        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", numberOfReplicas)
+            .put("index.context_aware.enabled", true)).get();
 
         for (int i = 2; i <= numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i);

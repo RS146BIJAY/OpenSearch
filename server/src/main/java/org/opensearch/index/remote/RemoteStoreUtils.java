@@ -103,6 +103,13 @@ public class RemoteStoreUtils {
      * @return Name of the segment that the segment file belongs to
      */
     public static String getSegmentName(String filename) {
+        String prefix = null;
+        // TODO: How to handle for recovery. ??
+        if (filename.contains("$")) {
+            prefix = filename.split("\\$")[0];
+            filename = filename.split("\\$")[1];
+        }
+
         // Segment file names follow patterns like "_0.cfe" or "_0_1_Lucene90_0.dvm".
         // Here, the segment name is "_0", which is the set of characters
         // starting with "_" until the next "_" or first ".".
@@ -115,7 +122,7 @@ public class RemoteStoreUtils {
             throw new IllegalArgumentException("Unable to infer segment name for segment file " + filename);
         }
 
-        return filename.substring(0, endIdx);
+        return prefix + "$" + filename.substring(0, endIdx);
     }
 
     /**

@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -152,8 +153,8 @@ public class NRTReplicationEngine extends Engine {
     private NRTReplicationReaderManager buildReaderManager() throws IOException {
         final Map<String, DirectoryReader> directoryReaderMap = new HashMap();
         if (config().isContextAwareEnabled()) {
-            directoryReaderMap.put("200", getDirectoryReader(store.getDirectoryMapping().get("200")));
-            directoryReaderMap.put("400", getDirectoryReader(store.getDirectoryMapping().get("400")));
+            directoryReaderMap.put("200", OpenSearchDirectoryReader.wrap(getDirectoryReader(store.getDirectoryMapping().get("200")), shardId));
+            directoryReaderMap.put("400", OpenSearchDirectoryReader.wrap(getDirectoryReader(store.getDirectoryMapping().get("400")), shardId));
 
             return new NRTReplicationReaderManager(
                 new OpenSearchMultiReader(store.directory(), directoryReaderMap, shardId),
@@ -161,7 +162,7 @@ public class NRTReplicationEngine extends Engine {
                 replicaFileTracker::decRef
             );
         } else {
-            directoryReaderMap.put("-1", getDirectoryReader(store.directory()));
+            directoryReaderMap.put("-1", OpenSearchDirectoryReader.wrap(getDirectoryReader(store.directory()), shardId));
             return new NRTReplicationReaderManager(
                 new OpenSearchMultiReader(store.directory(), directoryReaderMap, shardId),
                 replicaFileTracker::incRef,
@@ -207,6 +208,7 @@ public class NRTReplicationEngine extends Engine {
         // get a reference to the previous commit files so they can be decref'd once a new commit is made.
         final Collection<String> previousCommitFiles = getLastCommittedSegmentInfos().files(true);
         store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        Lucene.commitCriteriaBasedSegmentInfos(infos, store.directory());
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         // incref the latest on-disk commit.
         replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));

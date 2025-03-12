@@ -565,6 +565,7 @@ public class InternalEngine extends Engine {
             // we simply run a blocking refresh on the internal reference manager and then steal it's reader
             // it's a save operation since we acquire the reader which incs it's reference but then down the road
             // steal it by calling incRef on the "stolen" reader
+            System.out.println("Refreshing reader");
             internalReaderManager.maybeRefreshBlocking();
             final OpenSearchMultiReader newReader = internalReaderManager.acquire();
             if (isWarmedUp == false || newReader != referenceToRefresh) {

@@ -105,10 +105,11 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", "1")
-                .put("index.number_of_replicas", "0")
+                .put("index.number_of_replicas", "1")
                 .put("index.context_aware.enabled", true)
                 .putList("index.sort.field", "date", "keyword_dv")
         ).setMapping(TEST_MAPPING).get();
+        ensureGreen("test");
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("test")
                 .setId(Integer.toString(i))

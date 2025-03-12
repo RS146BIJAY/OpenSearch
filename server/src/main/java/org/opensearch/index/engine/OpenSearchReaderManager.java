@@ -72,20 +72,31 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchMultiReader> {
 
     @Override
     protected OpenSearchMultiReader refreshIfNeeded(OpenSearchMultiReader referenceToRefresh) throws IOException {
-        final Map<String, DirectoryReader> subReadersMap = new HashMap<>();
-        for (Map.Entry<String, DirectoryReader> readerCriteriaEntry : referenceToRefresh.getSubReadersCriteriaMap().entrySet()) {
+        final Map<String, DirectoryReader> originalReadersMap = referenceToRefresh.getSubReadersCriteriaMap();
+        final Map<String, DirectoryReader> newReadersMap = new HashMap<>();
+        for (Map.Entry<String, DirectoryReader> readerCriteriaEntry : originalReadersMap.entrySet()) {
             DirectoryReader refreshedReader = DirectoryReader.openIfChanged(readerCriteriaEntry.getValue());
             if (refreshedReader != null) {
-                subReadersMap.put(readerCriteriaEntry.getKey(), refreshedReader);
-            } else {
-                // Increase the reference count here so that
-                readerCriteriaEntry.getValue().incRef();
-                subReadersMap.put(readerCriteriaEntry.getKey(), readerCriteriaEntry.getValue());
+                newReadersMap.put(readerCriteriaEntry.getKey(), refreshedReader);
             }
+
+//            else {
+//                // Increase the reference count here so that this reader is not closed.
+//                readerCriteriaEntry.getValue().incRef();
+//                subReadersMap.put(readerCriteriaEntry.getKey(), readerCriteriaEntry.getValue());
+//            }
         }
 
-        if (!subReadersMap.isEmpty()) {
-            return new OpenSearchMultiReader(referenceToRefresh.getDirectory(), subReadersMap, referenceToRefresh.shardId());
+        if (!newReadersMap.isEmpty()) {
+            for (String criteria: originalReadersMap.keySet()) {
+                if (!newReadersMap.containsKey(criteria)) {
+                    // Increase the reference count here so that this reader is not closed.
+                    originalReadersMap.get(criteria).incRef();
+                    newReadersMap.put(criteria, originalReadersMap.get(criteria));
+                }
+            }
+
+            return new OpenSearchMultiReader(referenceToRefresh.getDirectory(), newReadersMap, referenceToRefresh.shardId());
         } else {
             return null;
         }

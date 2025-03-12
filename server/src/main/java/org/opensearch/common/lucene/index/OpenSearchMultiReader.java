@@ -52,10 +52,11 @@ public class OpenSearchMultiReader extends MultiReader {
         final Map<String, SegmentInfos> segmentInfosCriteriaMap = new HashMap<>();
         for (Map.Entry<String, DirectoryReader> subReaderEntry : subReadersCriteriaMap.entrySet()) {
             DirectoryReader directoryReader = OpenSearchDirectoryReader.unwrap(subReaderEntry.getValue());
-            if (Lucene.indexExists(directoryReader.directory())) {
+            assert directoryReader instanceof StandardDirectoryReader;
+            SegmentInfos childSegmentInfos = ((StandardDirectoryReader) directoryReader).getSegmentInfos();
+            if (childSegmentInfos != null) {
                 String criterion = subReaderEntry.getKey();
-                assert directoryReader instanceof StandardDirectoryReader;
-                segmentInfosCriteriaMap.put(criterion, ((StandardDirectoryReader) directoryReader).getSegmentInfos());
+                segmentInfosCriteriaMap.put(criterion, childSegmentInfos);
             }
         }
 

@@ -89,18 +89,18 @@ final class SoftDeletesPolicy {
      * Sets the local checkpoint of the current safe commit
      */
     synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
-        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException(
-                "Local checkpoint can't go backwards; "
-                    + "new checkpoint ["
-                    + newCheckpoint
-                    + "],"
-                    + "current checkpoint ["
-                    + localCheckpointOfSafeCommit
-                    + "]"
-            );
-        }
-        this.localCheckpointOfSafeCommit = newCheckpoint;
+//        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+//            throw new IllegalArgumentException(
+//                "Local checkpoint can't go backwards; "
+//                    + "new checkpoint ["
+//                    + newCheckpoint
+//                    + "],"
+//                    + "current checkpoint ["
+//                    + localCheckpointOfSafeCommit
+//                    + "]"
+//            );
+//        }
+        this.localCheckpointOfSafeCommit = Math.max(newCheckpoint, this.localCheckpointOfSafeCommit);
     }
 
     /**

@@ -35,6 +35,7 @@ package org.opensearch.indices.recovery;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -67,6 +68,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
@@ -377,6 +379,12 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             store.incRef();
             try {
                 store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+
+                //After we have validated that all the files are copied correctly on both parent and child directory level at the destination,
+                // we recreate segment_N at child directory level before associating it with new translog.
+                String lastCommittedSegmentNFileName = SegmentInfos.getLastCommitSegmentsFileName(store.directory());
+                final SegmentInfos sis = SegmentInfos.readCommit(store.directory(), lastCommittedSegmentNFileName);
+                Lucene.commitCriteriaBasedSegmentInfos(sis, store.directory());
 
                 // Replicas for segment replication or remote snapshot indices do not create
                 // their own commit points and therefore do not modify the commit user data

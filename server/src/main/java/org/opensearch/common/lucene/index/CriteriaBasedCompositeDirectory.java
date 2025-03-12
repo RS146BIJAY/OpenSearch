@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +45,7 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
     private final Map<String, Directory> criteriaDirectoryMapping;
     private final Directory multiTenantDirectory;
     private ByteBuffersDataInput currentSegmentInfos = null;
-    private final AtomicReference<String> segment_N_name = new AtomicReference<>();
+    private AtomicReference<String> segment_N_name = new AtomicReference<>();
 
     /**
      * Sole constructor, typically called from sub-classes.
@@ -78,9 +80,6 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
     // there are no active references of a file by parent IndexWriter to child IndexWriter, should we delete it?
     @Override
     public void deleteFile(String name) throws IOException {
-        if (name.contains("segments")) {
-            return;
-        }
 
         // if (name.contains("$")) {
         // String criteria = name.split("\\$")[0];
@@ -93,12 +92,17 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
 
         // For time being let child IndexWriter take care of deleting files inside it. Parent IndexWriter should only care
         // about deleting files within parent directory.
-        if (!name.contains("$")) {
+        if (!name.contains("$") && !name.contains("segments")) {
+//            if (name.contains("segments")) {
+//                segment_N_name = new AtomicReference<>();
+//                return;
+//            }
+
             multiTenantDirectory.deleteFile(name);
         }
     }
 
-    // Fix this.
+    // TODO: Fix this: [recovery.AD7-fSp4QXu6R5Jssm77vQ.400$_0.cfe] in [write.lock, 400_recovery.AD7-fSp4QXu6R5Jssm77vQ._0.cfe, 400_recovery.AD7-fSp4QXu6R5Jssm77vQ._0.si, recovery.AD7-fSp4QXu6R5Jssm77vQ.segments_5]
     @Override
     public String[] listAll() throws IOException {
         // List<String> filesList = new ArrayList<>();
@@ -121,7 +125,13 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
             String prefix = filterDirectoryEntry.getKey();
             Directory filterDirectory = filterDirectoryEntry.getValue();
             for (String fileName : filterDirectory.listAll()) {
-                filesList.add(prefix + "_" + fileName);
+                if (!fileName.contains("recovery") && !fileName.contains("replication")) {
+                    filesList.add(prefix + "$" + fileName);
+                } else {
+                    String[] fileNameToken = fileName.split("\\.");
+                    fileNameToken[2] = prefix + "$" + fileNameToken[2];
+                    filesList.add(String.join(".", fileNameToken));
+                }
             }
         }
 
@@ -138,7 +148,28 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
         if (source.contains("segments")) {
             segment_N_name.compareAndSet(segment_N_name.get(), dest);
         } else {
-            multiTenantDirectory.rename(source, dest);
+            String criteria;
+            if (source.contains("recovery") || source.contains("replication")) {
+                String[] sourceToken = source.split("\\.");
+                criteria = sourceToken[2].split("\\$")[0];
+                sourceToken[2] = sourceToken[2].replace(criteria + "$", "");
+                source = String.join(".", sourceToken);
+            } else {
+                criteria = source.split("\\$")[0];
+                source = source.replace(criteria + "$", "");
+            }
+
+            if (dest.contains("recovery") || dest.contains("replication")) {
+                String[] destToken = dest.split("\\.");
+                criteria = destToken[2].split("\\$")[0];
+                destToken[2] = destToken[2].replace(criteria + "$", "");
+                dest = String.join(".", destToken);
+            } else {
+                criteria = dest.split("\\$")[0];
+                dest = dest.replace(criteria + "$", "");
+            }
+
+            criteriaDirectoryMapping.get(criteria).rename(source, dest);
         }
     }
 
@@ -157,8 +188,34 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
 
     @Override
     public void sync(Collection<String> names) throws IOException {
-        // segment_N is in memory.
-        multiTenantDirectory.sync(names.stream().filter(name -> !(name.contains(segment_N_name.get()) && name.contains("segments"))).collect(Collectors.toSet()));
+        Map<String, Set<String>> namesMap = new HashMap<>();
+        for (String name : names) {
+            if (name.contains("$")) {
+                String[] criteriaTokens = name.split("\\$")[0].split("\\.");
+                String criteria = criteriaTokens[criteriaTokens.length - 1];
+                if (!namesMap.containsKey(criteria)) {
+                    namesMap.put(criteria, new HashSet<>());
+                }
+
+                namesMap.get(criteria).add(name.split("\\$")[1]);
+
+            } else if (!name.contains("segments")) {
+                if (!namesMap.containsKey("-1")) {
+                    namesMap.put("-1", new HashSet<>());
+                }
+
+                namesMap.get("-1").add(name);
+            }
+        }
+
+        for (String criteria : namesMap.keySet()) {
+            if (criteria.equals("-1")) {
+                // segment_N is in memory.
+                multiTenantDirectory.sync(namesMap.get(criteria));
+            } else {
+                getDirectory(criteria).sync(namesMap.get(criteria));
+            }
+        }
     }
 
     // TODO: Select on the basis of filter name.
@@ -185,6 +242,12 @@ public class CriteriaBasedCompositeDirectory extends FilterDirectory {
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         if (name.contains("$")) {
             String criteria = name.split("\\$")[0];
+            // Check for recovery. files
+            if (criteria.contains(".")) {
+                String[] criteriaToken = criteria.split("\\.");
+                criteria = criteriaToken[criteriaToken.length - 1];
+            }
+
             return getDirectory(criteria).createOutput(name.replace(criteria + "$", ""), context);
         } else if (name.contains("segments")) {
             // File name of segments_N should be equal to file name with which it is written.

@@ -134,9 +134,10 @@ public class ReadOnlyEngine extends Engine {
                 assert directory != null;
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
-                for (Directory childDirectory : directory.getChildDirectoryList()) {
-                    indexWriterLockList.add(childDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME));
-                }
+                // Do not need write.lock on parent level.
+//                for (Directory childDirectory : directory.getChildDirectoryList()) {
+//                    indexWriterLockList.add(childDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME));
+//                }
 
                 this.combinedView = new ContextAwareIndexWriterReadOnlyCombinedView(directory, shardId);
                 this.lastCommittedSegmentInfos = combinedView.getLatestSegmentInfos(
@@ -169,8 +170,8 @@ public class ReadOnlyEngine extends Engine {
                 success = true;
             } finally {
                 if (success == false) {
-                    IOUtils.close(reader, store::decRef);
                     IOUtils.close(indexWriterLockList);
+                    IOUtils.close(reader, store::decRef);
                 }
             }
         } catch (IOException e) {
@@ -254,8 +255,11 @@ public class ReadOnlyEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
+                for (Lock lock : indexWriterLockList) {
+                    lock.close();
+                }
+
                 IOUtils.close(readerManager, store::decRef);
-                IOUtils.close(indexWriterLockList);
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);
             } finally {

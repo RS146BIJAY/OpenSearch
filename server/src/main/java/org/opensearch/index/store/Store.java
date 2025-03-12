@@ -501,12 +501,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public CheckIndex.Status checkIndex(PrintStream out) throws IOException {
         metadataLock.writeLock().lock();
-        try (CheckIndex checkIndex = new CheckIndex(directory)) {
-            checkIndex.setInfoStream(out);
-            return checkIndex.checkIndex();
-        } finally {
-            metadataLock.writeLock().unlock();
+        CriteriaBasedCompositeDirectory criteriaBasedCompositeDirectory = CriteriaBasedCompositeDirectory.unwrap(directory);
+        assert criteriaBasedCompositeDirectory != null;
+        for (Directory childDirectory: criteriaBasedCompositeDirectory.getChildDirectoryList()) {
+            try (CheckIndex checkIndex = new CheckIndex(childDirectory)) {
+                checkIndex.setInfoStream(out);
+                return checkIndex.checkIndex();
+            } finally {
+                metadataLock.writeLock().unlock();
+            }
         }
+
+        return null;
     }
 
     /**

@@ -14,10 +14,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.CriteriaBasedCompositeDirectory;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchMultiReader;
 
@@ -28,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -40,8 +45,10 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
 
     private final static Logger logger = LogManager.getLogger(NRTReplicationReaderManager.class);
     private volatile SegmentInfos currentInfos;
+    private volatile Map<String, SegmentInfos> currentInfosCriteriaMap = new ConcurrentHashMap<>();
     private Consumer<Collection<String>> onReaderClosed;
     private Consumer<Collection<String>> onNewReader;
+    private Directory directory;
 
     /**
      * Creates and returns a new SegmentReplicationReaderManager from the given
@@ -59,19 +66,49 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
     ) throws IOException {
         super(reader);
         currentInfos = unwrapMultiReader(reader).getSegmentInfos();
+        populateChildSegmentInfos(currentInfos, reader.getDirectory());
         this.onNewReader = onNewReader;
         this.onReaderClosed = onReaderClosed;
+        this.directory = reader.getDirectory();
+    }
+
+    private void populateChildSegmentInfos(SegmentInfos parentSegmentInfos, Directory directory) throws IOException {
+        final CriteriaBasedCompositeDirectory criteriaBasedCompositeDirectory = CriteriaBasedCompositeDirectory.unwrap(directory);
+        assert criteriaBasedCompositeDirectory != null;
+        Map<String, String> commitUserDataBuilder = new HashMap<>();
+        commitUserDataBuilder.putAll(parentSegmentInfos.getUserData());
+        for (Map.Entry<String, Directory> criteriaDirectoryEntry: criteriaBasedCompositeDirectory.getCriteriaDirectoryMapping().entrySet()) {
+            final String criteria = criteriaDirectoryEntry.getKey();
+            String lastCommittedSegmentNFileName = SegmentInfos.getLastCommitSegmentsFileName(directory);
+            final SegmentInfos sis;
+            if (lastCommittedSegmentNFileName == null) {
+                sis = new SegmentInfos(Version.LATEST.major);
+            } else {
+                sis = SegmentInfos.readCommit(directory, lastCommittedSegmentNFileName);
+                sis.clear();
+            }
+
+            sis.setUserData(commitUserDataBuilder, true);
+            currentInfosCriteriaMap.put(criteria, sis);
+        }
+
+        for (SegmentCommitInfo info : parentSegmentInfos) {
+            String criteria = info.info.name.split("\\$")[0];
+            String newSegName = info.info.name.split("\\$")[1];
+            currentInfosCriteriaMap.get(criteria).add(Lucene.copySegmentAsIs(info, newSegName, criteriaBasedCompositeDirectory.getDirectory(criteria)));
+        }
     }
 
     @Override
     protected OpenSearchMultiReader refreshIfNeeded(OpenSearchMultiReader referenceToRefresh) throws IOException {
         final Map<String, DirectoryReader> readerCriteriaMap = new HashMap<>();
         for (Map.Entry<String, DirectoryReader> readerCriteriaMapEntry : referenceToRefresh.getSubReadersCriteriaMap().entrySet()) {
+            String criteria = readerCriteriaMapEntry.getKey();
             assert readerCriteriaMapEntry.getValue() instanceof OpenSearchDirectoryReader;
             OpenSearchDirectoryReader directoryReaderToRefresh = (OpenSearchDirectoryReader) readerCriteriaMapEntry.getValue();
             Objects.requireNonNull(directoryReaderToRefresh);
             // checks if an actual refresh (change in segments) happened
-            if (unwrapStandardReader(directoryReaderToRefresh).getSegmentInfos().version == currentInfos.version) {
+            if (unwrapStandardReader(directoryReaderToRefresh).getSegmentInfos().version == currentInfosCriteriaMap.get(criteria).version) {
                 return null;
             }
             final List<LeafReader> subs = new ArrayList<>();
@@ -81,14 +118,14 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
             }
             // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
             // does not yet exist on store (not yet committed)
-            final Collection<String> files = currentInfos.files(false);
-            DirectoryReader innerReader = StandardDirectoryReader.open(directoryReaderToRefresh.directory(), currentInfos, subs, null);
+            final Collection<String> files = currentInfosCriteriaMap.get(criteria).files(false);
+            DirectoryReader innerReader = StandardDirectoryReader.open(directoryReaderToRefresh.directory(), currentInfosCriteriaMap.get(criteria), subs, null);
             final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
                 innerReader,
                 Lucene.SOFT_DELETES_FIELD
             );
             logger.trace(
-                () -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader)
+                () -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfosCriteriaMap.get(criteria).getVersion() + " reader=" + innerReader)
             );
             final OpenSearchDirectoryReader reader = OpenSearchDirectoryReader.wrap(
                 softDeletesDirectoryReaderWrapper,
@@ -96,7 +133,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
             );
             onNewReader.accept(files);
             OpenSearchDirectoryReader.addReaderCloseListener(reader, key -> onReaderClosed.accept(files));
-            readerCriteriaMap.put(readerCriteriaMapEntry.getKey(), reader);
+            readerCriteriaMap.put(criteria, reader);
         }
 
         return new OpenSearchMultiReader(referenceToRefresh.getDirectory(), readerCriteriaMap, referenceToRefresh.shardId());
@@ -113,6 +150,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         // is always increased.
         infos.updateGeneration(currentInfos);
         currentInfos = infos;
+        populateChildSegmentInfos(currentInfos, directory);
         maybeRefresh();
     }
 
