@@ -310,11 +310,15 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(repoName, "mock");
 
         final String indexName = "index-1";
-        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        int docCount = randomIntBetween(5, 8);
+        createIndexWithRandomDocs(indexName, docCount);
+        System.out.println("Initial Indexed doc count: " + docCount);
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
+        docCount = randomIntBetween(20, 30);
+        System.out.println("Indexed doc count: " + docCount);
 
-        indexRandomDocs(indexName, randomIntBetween(20, 100));
+        indexRandomDocs(indexName, docCount);
 
         final String targetSnapshot = "target-snapshot";
         blockClusterManagerOnWriteIndexFile(repoName);

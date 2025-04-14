@@ -32,6 +32,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -67,8 +68,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          *  clear this RAM. */
         final AtomicLong ramBytesUsed = new AtomicLong();
 
-        private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
+        private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap(), Collections.emptyMap());
         private final Map<BytesRef, VersionValue> map;
+        private final Map<BytesRef, IndexWriter> firstWriteIndexWriterMap;
 
         // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
         // where we know that documents can't have any duplicates so we can skip the version map entirely. This reduces
@@ -86,16 +88,25 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // the tombstone
         private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
 
-        private VersionLookup(Map<BytesRef, VersionValue> map) {
+        private VersionLookup(Map<BytesRef, VersionValue> map, Map<BytesRef, IndexWriter> firstWriteIndexWriterMap) {
             this.map = map;
+            this.firstWriteIndexWriterMap = firstWriteIndexWriterMap;
         }
 
         VersionValue get(BytesRef key) {
             return map.get(key);
         }
 
+        IndexWriter getFirstWriteIndexWriter(BytesRef key) {
+            return firstWriteIndexWriterMap.get(key);
+        }
+
         VersionValue put(BytesRef key, VersionValue value) {
             return map.put(key, value);
+        }
+
+        void putFirstWriteIndexWriter(BytesRef key, IndexWriter indexWriter) {
+            firstWriteIndexWriterMap.put(key, indexWriter);
         }
 
         boolean isEmpty() {
@@ -150,7 +161,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         Maps() {
-            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
+            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(),
+                ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
         }
 
         boolean isSafeAccessMode() {
@@ -169,7 +181,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          */
         Maps buildTransitionMap() {
             return new Maps(
-                new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
+                new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size()),
+                    ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
                 current,
                 shouldInheritSafeAccess()
             );
@@ -188,6 +201,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             VersionValue previousValue = current.put(uid, version);
             ramAccounting += previousValue == null ? 0 : -(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed);
             adjustRam(ramAccounting);
+        }
+
+        void putFirstWriteIndexWriter(BytesRef uid, IndexWriter writer) {
+            current.putFirstWriteIndexWriter(uid, writer);
         }
 
         void adjustRam(long value) {
@@ -313,6 +330,22 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return tombstones.get(uid);
     }
 
+    IndexWriter getIndexWriterUnderLock(final BytesRef uid) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
+        Maps currentMaps = maps;
+        IndexWriter writer = currentMaps.current.getFirstWriteIndexWriter(uid);
+        if (writer != null) {
+            return writer;
+        }
+
+        writer = currentMaps.old.getFirstWriteIndexWriter(uid);
+        if (writer != null) {
+            return writer;
+        }
+
+        return null;
+    }
+
     VersionValue getVersionForAssert(final BytesRef uid) {
         VersionValue value = getUnderLock(uid, maps);
         if (value == null) {
@@ -349,6 +382,12 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             maps.current.markAsUnsafe();
             assert putAssertionMap(uid, version);
         }
+    }
+
+    void putFirstWriteIndexWriterUnderLock(BytesRef uid, IndexWriter writer) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
+        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
+        maps.putFirstWriteIndexWriter(uid, writer);
     }
 
     void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {

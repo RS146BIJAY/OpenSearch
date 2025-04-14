@@ -67,6 +67,7 @@ import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -540,6 +541,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected long getCountForIndex(String indexName) {
+//        client().prepareSearch(indexName).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).setVersion(true).get();
         return client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
         ).actionGet().getHits().getTotalHits().value();
