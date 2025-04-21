@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 
 public class DeleteEntry {
@@ -15,12 +16,15 @@ public class DeleteEntry {
     private final String id;
     private final long seqNo, primaryTerm, versionOfDeletion;
     private final Term term;
-    public DeleteEntry(String id, long seqNo, long primaryTerm, long versionOfDeletion, Term term) {
+    private final IndexWriter writer;
+
+    public DeleteEntry(String id, long seqNo, long primaryTerm, long versionOfDeletion, Term term, IndexWriter writer) {
         this.id = id;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.versionOfDeletion = versionOfDeletion;
         this.term = term;
+        this.writer = writer;
     }
 
     public long getSeqNo() {
@@ -41,6 +45,10 @@ public class DeleteEntry {
 
     public Term getTerm() {
         return term;
+    }
+
+    public IndexWriter getWriter() {
+        return writer;
     }
 
     @Override
