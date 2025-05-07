@@ -134,8 +134,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             return map.remove(uid);
         }
 
-        public void removeDeleteEntry(BytesRef key) {
-            lastDeleteEntrySet.remove(key);
+        public DeleteEntry removeDeleteEntry(BytesRef key) {
+            return lastDeleteEntrySet.remove(key);
         }
 
         public void updateMinDeletedTimestamp(DeleteVersionValue delete) {
@@ -189,7 +189,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
-            System.out.println("Rotating deletion map with old map size " + current.size());
+//            System.out.println("Rotating deletion map with old map size " + current.lastDeleteEntrySetSize());
             return new Maps(
                 new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size()),
                     ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.lastDeleteEntrySetSize())),
@@ -224,9 +224,14 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             }
         }
 
-        void remove(BytesRef uid, DeleteVersionValue deleted) {
+        void remove(BytesRef uid, DeleteVersionValue deleted, DeleteEntry deleteEntry) {
             VersionValue previousValue = current.remove(uid);
             current.removeDeleteEntry(uid);
+            if (deleteEntry != null) {
+//                System.out.println("Adding delete entry " + deleteEntry);
+                current.putLastDeleteEntry(uid, deleteEntry);
+            }
+
             current.updateMinDeletedTimestamp(deleted);
             if (previousValue != null) {
                 long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
@@ -400,7 +405,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
         // Skipping first version entry.
         if (entry != null && entry.getVersionOfDeletion() > 0) {
-            System.out.println("Adding delete entry " + entry);
+//            System.out.println("Adding delete entry " + entry);
             maps.putLastDeleteEntry(uid, entry);
         }
     }
@@ -412,11 +417,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return true;
     }
 
-    void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
+    void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version, DeleteEntry deleteEntry) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         putTombstone(uid, version);
-        maps.remove(uid, version);
+        maps.remove(uid, version, deleteEntry);
     }
 
     private void putTombstone(BytesRef uid, DeleteVersionValue version) {

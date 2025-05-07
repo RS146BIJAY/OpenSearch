@@ -720,7 +720,7 @@ public abstract class RecoverySourceHandler {
             throw new IndexShardClosedException(request.shardId());
         }
         logger.trace("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
-//        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
+        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
         final StopWatch stopWatch = new StopWatch().start();
         final StepListener<Void> sendListener = new StepListener<>();
         final OperationBatchSender sender = new OperationBatchSender(

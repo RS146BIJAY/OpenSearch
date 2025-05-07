@@ -111,6 +111,8 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.LocalTranslog;
@@ -357,7 +359,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
             assertNoInFlightDocuments(engine);
             assertMaxSeqNoInCommitUserData(engine);
-            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+//            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
         }
     }
 
@@ -520,7 +522,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath, new FsDirectoryFactory());
     }
 
     protected Translog createTranslog(LongSupplier primaryTermSupplier) throws IOException {

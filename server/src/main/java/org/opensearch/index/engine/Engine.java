@@ -636,6 +636,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
             return created;
         }
 
+        @Override
+        public String toString() {
+            return "Version: " + getVersion() + " term: " + getTerm() + " seqNo: " + getSeqNo();
+        }
     }
 
     /**

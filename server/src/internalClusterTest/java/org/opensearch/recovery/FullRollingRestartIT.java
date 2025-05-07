@@ -143,6 +143,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
+        System.out.println("Restarting nodes");
         // now start shutting nodes down
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
@@ -171,6 +172,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         );
 
         logger.info("--> stopped two nodes, verifying data");
+        System.out.println("stopped two nodes, verifying data");
         refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
@@ -179,6 +181,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         // closing the 3rd node
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
+        System.out.println("Waiting for green state");
         assertTimeout(
             client().admin()
                 .cluster()
@@ -205,6 +208,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         );
 
         logger.info("--> one node left, verifying data");
+        System.out.println("one node left, verifying data");
         refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
