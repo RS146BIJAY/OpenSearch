@@ -209,6 +209,7 @@ public class ShardStateAction {
                             ),
                             exp
                         );
+
                         listener.onFailure(
                             exp instanceof RemoteTransportException
                                 ? (Exception) (exp.getCause() instanceof Exception

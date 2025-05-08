@@ -627,6 +627,36 @@ public class InternalEngine extends Engine {
         return writingBytes;
     }
 
+    private ExternalReaderManager createChildLevelReaderManager(RefreshWarmerListener externalRefreshListener, IndexWriter writer) throws EngineException {
+        boolean success = false;
+        OpenSearchReaderManager internalReaderManager = null;
+        try {
+            try {
+                final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
+                    DirectoryReader.open(writer),
+                    shardId
+                );
+                internalReaderManager = new OpenSearchReaderManager(directoryReader);
+                ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
+                success = true;
+                return externalReaderManager;
+            } catch (IOException e) {
+                maybeFailEngine("start", e);
+                try {
+                    writer.rollback();
+                } catch (IOException inner) { // iw is closed below
+                    e.addSuppressed(inner);
+                }
+                throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
+            }
+        }  finally {
+            if (success == false) { // release everything we created on a failure
+                IOUtils.closeWhileHandlingException(internalReaderManager, writer);
+                IOUtils.closeWhileHandlingException(groupLevelExternalReaderManagersMap.values());
+            }
+        }
+    }
+
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener, IndexWriter writer) throws EngineException {
         boolean success = false;
         OpenSearchReaderManager internalReaderManager = null;
@@ -1321,7 +1351,7 @@ public class InternalEngine extends Engine {
         childLevelReadWriteLocks.put(childIndexWriter.toString(), childLock);
         childLevelReadLocks.put(childIndexWriter.toString(), new ReleasableLock(childLock.readLock()));
         childLevelWriteLocks.put(childIndexWriter.toString(), new ReleasableLock(childLock.writeLock()));
-        ExternalReaderManager childLevelReaderManager = createReaderManager(new RefreshWarmerListener(logger, new AtomicBoolean(isClosed.get()), engineConfig), childIndexWriter);
+        ExternalReaderManager childLevelReaderManager = createChildLevelReaderManager(new RefreshWarmerListener(logger, new AtomicBoolean(isClosed.get()), engineConfig), childIndexWriter);
         // Initial refresh gets called when shards gets created in IndexShard.finaliseRecovery. So in oder to ensure
         // initial shard is warmed up we call an explicit refresh on child level Reader manager.
         childLevelReaderManager.maybeRefreshBlocking();
@@ -2763,6 +2793,11 @@ public class InternalEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                refreshParentIndexWriter(false);
+                if (parentIndexWriter.isOpen()) {
+                    parentIndexWriter.close();
+                }
+
                 this.versionMap.clear();
                 if (internalReaderManager != null) {
                     internalReaderManager.removeListener(versionMap);
@@ -3098,6 +3133,7 @@ public class InternalEngine extends Engine {
                 return commitData.entrySet().iterator();
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);
+            System.out.println("Commiting index writer with checkpoint " + localCheckpoint);
             writer.commit();
         } catch (final Exception ex) {
             try {

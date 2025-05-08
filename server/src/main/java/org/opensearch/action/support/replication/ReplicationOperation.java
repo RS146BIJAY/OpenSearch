@@ -37,6 +37,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.action.support.TransportActions;
@@ -154,6 +157,7 @@ public class ReplicationOperation<
         this.primaryResult = primaryResult;
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
+            System.out.println(primary.routingEntry().shardId() + " op " + opType + " completed on primary for request " + request);
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
@@ -220,7 +224,6 @@ public class ReplicationOperation<
         // for total stats, add number of unassigned shards and
         // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
-
         final ShardRouting primaryRouting = primary.routingEntry();
 
         for (final ShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
@@ -248,6 +251,20 @@ public class ReplicationOperation<
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
+
+        System.out.println("Replica request is executed post indexing on primary " + replicaRequest);
+        if (replicaRequest instanceof BulkShardRequest) {
+            for (BulkItemRequest itemRequest: ((BulkShardRequest) replicaRequest).items()) {
+                if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
+                    System.out.println("Replica request is executed post indexing on retry " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
+                } else {
+                    System.out.println("Replica request is executed post indexing tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
+                }
+            }
+        } else {
+            System.out.println("Non bulk shard request Replica request is executed post indexing on primary " + replicaRequest);
+        }
+
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
         final ActionListener<ReplicaResponse> replicationListener = new ActionListener<ReplicaResponse>() {

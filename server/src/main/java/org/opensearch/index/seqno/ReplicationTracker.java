@@ -1385,6 +1385,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 + " when activating primary";
         assert localCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         primaryMode = true;
+        System.out.println("Primary mode activated for replica shard");
         updateLocalCheckpoint(shardAllocationId, checkpoints.get(shardAllocationId), localCheckpoint);
         updateGlobalCheckpointOnPrimary();
 
@@ -1760,9 +1761,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + "] is lower than previous one ["
             + globalCheckpoint
             + "]";
+        System.out.println("updated global checkpoint to " + globalCheckpoint + " computed global checkpoint " + computedGlobalCheckpoint);
         if (globalCheckpoint != computedGlobalCheckpoint) {
             globalCheckpoint = computedGlobalCheckpoint;
-//            System.out.println("updated global checkpoint to " + computedGlobalCheckpoint);
             logger.trace("updated global checkpoint to [{}]", computedGlobalCheckpoint);
             onGlobalCheckpointUpdated.accept(computedGlobalCheckpoint);
         }

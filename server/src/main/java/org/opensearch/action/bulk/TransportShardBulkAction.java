@@ -715,6 +715,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 } else {
                     logger.debug(messageSupplier, failure);
                 }
+
+                System.out.println(messageSupplier.get());
             }
             response = executionResult;
         }

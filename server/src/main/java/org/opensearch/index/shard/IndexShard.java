@@ -753,6 +753,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (resyncStarted == false) {
                         throw new IllegalStateException("cannot start resync while it's already in progress");
                     }
+
+                    System.out.println("Updating primary term inside updateShardState");
                     bumpPrimaryTerm(newPrimaryTerm, () -> {
                         shardStateUpdated.await();
                         assert pendingPrimaryTerm == newPrimaryTerm : "shard term changed on primary. expected ["
@@ -2465,6 +2467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while ((operation = snapshot.next()) != null) {
             try {
                 logger.trace("[translog] recover op {}", operation);
+                System.out.println("[translog] recover op " + operation);
                 Engine.Result result = applyTranslogOperation(engine, operation, origin);
                 switch (result.getResultType()) {
                     case FAILURE:
@@ -4418,6 +4421,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
 
+                    System.out.println("Updating primary term inside innerAcquireReplicaOperationPermit.");
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                         final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
@@ -4930,6 +4934,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {
+        System.out.println("Reset engine to global checkpoint.");
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED : "resetting engine without blocking operations; active operations are ["
             + getActiveOperations()
