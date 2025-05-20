@@ -1132,6 +1132,35 @@ public class InternalEngineTests extends EngineTestCase {
         };
     }
 
+    public void testDuplicateTerm() throws Exception {
+        engine.refresh("warm_up");
+        Engine.Searcher searchResult = engine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
+        searchResult.close();
+
+        final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+
+        // create a document
+        Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
+        Engine.Index indexDoc = indexForDoc(doc, 1);
+        engine.index(indexDoc);
+
+        indexDoc = indexForDoc(doc, 2);
+        engine.index(indexDoc);
+
+        // refresh and it should be there
+        engine.refresh("test");
+
+        searchResult = engine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+    }
+
+    protected Engine.Index indexForDoc(ParsedDocument doc, long primaryTerm) {
+        return new Engine.Index(newUid(doc), primaryTerm, doc);
+    }
+
     public void testSimpleOperations() throws Exception {
         engine.refresh("warm_up");
         Engine.Searcher searchResult = engine.acquireSearcher("test");

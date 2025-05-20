@@ -1122,6 +1122,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 0
             );
+
             return getEngine().index(index);
         }
         assert opPrimaryTerm <= getOperationPrimaryTerm() : "op term [ "
@@ -2406,6 +2407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         final Engine.Result result;
+        System.out.println("Translog operation applied " + operation);
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;

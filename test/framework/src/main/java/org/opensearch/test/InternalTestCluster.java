@@ -1543,6 +1543,10 @@ public final class InternalTestCluster extends TestCluster {
                         } catch (AlreadyClosedException ex) {
                             continue;
                         }
+
+                        System.out.println("Primary: " + docsOnPrimary);
+                        System.out.println("Replica: " + docsOnReplica);
+
                         assertThat(
                             "out of sync shards: primary=["
                                 + primaryShardRouting

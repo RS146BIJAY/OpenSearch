@@ -402,12 +402,13 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         maps.put(uid, version);
         removeTombstoneUnderLock(uid);
+        maps.putLastDeleteEntry(uid, entry);
 
         // Skipping first version entry.
-        if (entry != null && entry.getVersionOfDeletion() > 0) {
-//            System.out.println("Adding delete entry " + entry);
-            maps.putLastDeleteEntry(uid, entry);
-        }
+//        if (entry != null && entry.getVersionOfDeletion() > 0) {
+////            System.out.println("Adding delete entry " + entry);
+//            maps.putLastDeleteEntry(uid, entry);
+//        }
     }
 
     private boolean putAssertionMap(BytesRef uid, IndexVersionValue version) {

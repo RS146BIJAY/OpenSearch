@@ -824,6 +824,8 @@ public abstract class RecoverySourceHandler {
                     skippedOps.incrementAndGet();
                     continue;
                 }
+
+                System.out.println("Translog operation getting applied " + operation);
                 ops.add(operation);
                 batchSizeInBytes += operation.estimateSize();
                 sentOps.incrementAndGet();

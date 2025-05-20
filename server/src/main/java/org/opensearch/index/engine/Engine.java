@@ -1753,6 +1753,11 @@ public abstract class Engine implements LifecycleAware, Closeable {
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
         }
+
+        @Override
+        public String toString() {
+            return "Id: " + id() + " seqNo: " + seqNo() + " primaryTerm: " + primaryTerm();
+        }
     }
 
     /**

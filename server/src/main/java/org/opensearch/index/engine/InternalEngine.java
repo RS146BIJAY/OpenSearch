@@ -1038,6 +1038,7 @@ public class InternalEngine extends Engine {
                         );
 
                         final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
+                        System.out.println("Index into lucene " + plan.indexIntoLucene + " use lucene update document " + plan.useLuceneUpdateDocument);
                         if (toAppend == false) {
                             advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(index.seqNo());
                         }
@@ -1145,10 +1146,12 @@ public class InternalEngine extends Engine {
             // question may have been deleted in an out of order op that is not replayed.
             // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
+            System.out.println("Plan: For update, Process but skip lucene in hasBeenProcessedBefore");
             plan = IndexingStrategy.processButSkipLucene(false, index.version());
         } else if (maxSeqNoOfUpdatesOrDeletes <= localCheckpointTracker.getProcessedCheckpoint()) {
             // see Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers
             assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : index.seqNo() + ">=" + maxSeqNoOfUpdatesOrDeletes;
+            System.out.println("Plan: For update, Optimise append only " + index.version() + " maxSeqNoOfUpdatesOrDeletes: " + maxSeqNoOfUpdatesOrDeletes + " processed checkpoint " + localCheckpointTracker.getProcessedCheckpoint());
             plan = IndexingStrategy.optimizedAppendOnly(index.version(), 0);
         } else {
             boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode();
@@ -1159,12 +1162,17 @@ public class InternalEngine extends Engine {
                     // For segrep based indices, we can't completely rely on localCheckpointTracker
                     // as the preserved checkpoint may not have all the operations present in lucene
                     // we don't need to index it again as stale op as it would create multiple documents for same seq no
+                    System.out.println("Plan: For update, Process but skip lucene in segRepEnabled OP_STALE_OR_EQUAL " + index.version());
                     plan = IndexingStrategy.processButSkipLucene(false, index.version());
                 } else {
+                    System.out.println("Plan: For update, Process as stale op in OP_STALE_OR_EQUAL " + index.version());
                     plan = IndexingStrategy.processAsStaleOp(index.version());
                 }
             } else {
 //                DeleteEntry deleteEntry = versionMap.getLastDeleteEntryUnderLock(index.uid().bytes());
+                System.out.println("Plan: For update, Process normally " + " opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND "
+                    + (opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND) + " index.version: " + index.version()
+                    + "maxSeqNoOfUpdatesOrDeletes: " + maxSeqNoOfUpdatesOrDeletes + " processed checkpoint " + localCheckpointTracker.getProcessedCheckpoint() + " and version: " + index.version());
                 plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0);
             }
         }
@@ -1189,8 +1197,10 @@ public class InternalEngine extends Engine {
         if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
+                System.out.println("Plan: failAsTooManyDocs " + reserveError);
                 plan = IndexingStrategy.failAsTooManyDocs(reserveError);
             } else {
+                System.out.println("Plan: optimizedAppendOnly " + reservingDocs);
                 plan = IndexingStrategy.optimizedAppendOnly(1L, reservingDocs);
             }
         } else {
@@ -1224,6 +1234,8 @@ public class InternalEngine extends Engine {
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
+
+                System.out.println("Plan: skipDueToVersionConflict for currentNotFoundOrDeleted, currentVersion: " + currentVersion + " error: " + e);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion);
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && (versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm())) {
@@ -1235,6 +1247,8 @@ public class InternalEngine extends Engine {
                         versionValue.seqNo,
                         versionValue.term
                     );
+
+                    System.out.println("Plan: skipDueToVersionConflict, currentVersion: " + currentVersion + " currentNotFoundOrDeleted: " + currentNotFoundOrDeleted + " error: " + e);
                     plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
                 } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
                     final VersionConflictEngineException e = new VersionConflictEngineException(
@@ -1243,10 +1257,13 @@ public class InternalEngine extends Engine {
                         currentVersion,
                         currentNotFoundOrDeleted
                     );
+
+                    System.out.println("Plan: skipDueToVersionConflict, isVersionConflictForWrites currentVersion: " + currentVersion + " currentNotFoundOrDeleted: " + currentNotFoundOrDeleted + " error: " + e);
                     plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
                 } else {
                     final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
                     if (reserveError != null) {
+                        System.out.println("Plan: failAsTooManyDocs " + reserveError);
                         plan = IndexingStrategy.failAsTooManyDocs(reserveError);
                     } else if (currentVersion >= 1 && engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex()) {
                         // Retry happens for indexing requests for append only indices, since we are rejecting update requests
@@ -1256,8 +1273,14 @@ public class InternalEngine extends Engine {
                             "Indexing operation retried for append only indices"
                         );
                         final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
+                        System.out.println("Plan: failAsIndexAppendOnly, result: " + result + " currentVersion: " + currentVersion);
                         plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
                     } else {
+                        System.out.println("Plan: processNormally, currentNotFoundOrDeleted: " + currentNotFoundOrDeleted + " canOptimizeAddDocument: " + canOptimizeAddDocument
+                            + " reservingDocs: " + reservingDocs + "maxSeqNoOfUpdatesOrDeletes: " + maxSeqNoOfUpdatesOrDeletes
+                            + " processed checkpoint " + localCheckpointTracker.getProcessedCheckpoint() + " and version: " + currentVersion);
+
+                        // TODO: For term bump, request is a retry (canOptimizeAddDocument = true) so, we are always setting version 1 to even though it is an update.
                         plan = IndexingStrategy.processNormally(
                             currentNotFoundOrDeleted,
                             canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
@@ -1290,11 +1313,14 @@ public class InternalEngine extends Engine {
             try (ReleasableLock releasableLock = childLevelReadLocks.get(currentIndexWriter.toString()).acquire()) {
                 DeleteEntry deleteEntry = versionMap.getLastDeleteEntryUnderLock(index.uid().bytes());
                 if (plan.addStaleOpToLucene) {
+                    System.out.println("Adding stale docs");
                     addStaleDocs(index.docs(), currentIndexWriter);
                 } else if (plan.useLuceneUpdateDocument || (deleteEntry != null && deleteEntry.getId().equals("-1"))) {
                     assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
+                    System.out.println("Updating docs " + plan.useLuceneUpdateDocument);
                     updateDocs(index.uid(), index.docs(), currentIndexWriter);
                 } else {
+                    System.out.println("Adding new docs");
                     // document does not exists, we can optimize for create, but double check if assertions are running
                     assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                     addDocs(index.docs(), currentIndexWriter);
@@ -1496,6 +1522,7 @@ public class InternalEngine extends Engine {
             assert maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         } else {
             // in this case we force
+            System.out.println("mayHaveBeenIndexedBefore, id: " + index.id() + " maxUnsafeAutoIdTimestamp " + maxUnsafeAutoIdTimestamp + " getAutoGeneratedIdTimestamp " + index.getAutoGeneratedIdTimestamp());
             mayHaveBeenIndexBefore = maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
             updateAutoIdTimestamp(index.getAutoGeneratedIdTimestamp(), false);
         }
@@ -2447,15 +2474,28 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * For adding delete entry, we insert a NOOp operation along with a delete.
+     *
+     * @param seqNo
+     * @param primaryTerm
+     * @param id
+     * @param versionOfDeletion
+     * @param deleteTerm
+     * @param currentWriter
+     * @throws IOException
+     */
     private void addDeleteEntryToWriter(long seqNo, long primaryTerm, String id, long versionOfDeletion, Term deleteTerm, IndexWriter currentWriter) throws IOException {
-        final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(id);
+        final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc("DocUpdate");
         assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
         tombstone.updateSeqID(seqNo, primaryTerm);
-        tombstone.version().setLongValue(versionOfDeletion);
+        // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version
+        // field. 1L is selected to optimize the compression because it might probably be the most common value in
+        // version field.
+        tombstone.version().setLongValue(1L);
         final ParseContext.Document doc = tombstone.docs().get(0);
-        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null : "Delete tombstone document but _tombstone field is not set ["
-            + doc
-            + " ]";
+        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+            : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
         doc.add(softDeletesField);
         System.out.println("Delete tombstone entry with seqNo added " + seqNo);
         currentWriter.softUpdateDocument(deleteTerm, doc, softDeletesField);
