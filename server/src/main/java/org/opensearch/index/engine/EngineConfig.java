@@ -541,6 +541,8 @@ public final class EngineConfig {
          * @param reason the reason of an a noop
          */
         ParsedDocument newNoopTombstoneDoc(String reason);
+
+        ParsedDocument newDummyNoopTombstoneDocForUpdates(String reason);
     }
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {

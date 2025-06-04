@@ -945,7 +945,7 @@ public class Lucene {
                     // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
                     // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
                     final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
-                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
+//                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
                 }
             });

@@ -544,17 +544,17 @@ public abstract class TransportReplicationAction<
                 );
             }
 
-            if (primaryRequest.getRequest() instanceof BulkShardRequest) {
-                for (BulkItemRequest itemRequest: ((BulkShardRequest) primaryRequest.getRequest()).items()) {
-                    if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
-                        System.out.println("Primary Is retried for request id " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
-                    } else {
-                        System.out.println("Primary BulkItemRequest Request tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
-                    }
-                }
-            } else {
-                System.out.println("Non bulk shard request retried " + primaryRequest.getRequest());
-            }
+//            if (primaryRequest.getRequest() instanceof BulkShardRequest) {
+//                for (BulkItemRequest itemRequest: ((BulkShardRequest) primaryRequest.getRequest()).items()) {
+//                    if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
+//                        System.out.println("Primary Is retried for request id " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
+//                    } else {
+//                        System.out.println("Primary BulkItemRequest Request tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
+//                    }
+//                }
+//            } else {
+//                System.out.println("Non bulk shard request retried " + primaryRequest.getRequest());
+//            }
 
 
             acquirePrimaryOperationPermit(
@@ -936,17 +936,17 @@ public abstract class TransportReplicationAction<
                 );
             }
 
-            if (replicaRequest.getRequest() instanceof BulkShardRequest) {
-                for (BulkItemRequest itemRequest: ((BulkShardRequest) replicaRequest.getRequest()).items()) {
-                    if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
-                        System.out.println("Replica Is retried for request id " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
-                    } else {
-                        System.out.println("Replica BulkItemRequest Request tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
-                    }
-                }
-            } else {
-                System.out.println("Non bulk shard request retried " + replicaRequest.getRequest());
-            }
+//            if (replicaRequest.getRequest() instanceof BulkShardRequest) {
+//                for (BulkItemRequest itemRequest: ((BulkShardRequest) replicaRequest.getRequest()).items()) {
+//                    if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
+//                        System.out.println("Replica Is retried for request id " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
+//                    } else {
+//                        System.out.println("Replica BulkItemRequest Request tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
+//                    }
+//                }
+//            } else {
+//                System.out.println("Non bulk shard request retried " + replicaRequest.getRequest());
+//            }
 
             acquireReplicaOperationPermit(
                 replica,

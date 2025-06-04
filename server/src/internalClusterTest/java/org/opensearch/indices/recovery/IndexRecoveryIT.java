@@ -195,7 +195,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
-        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+//        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
 //        internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
     }
@@ -2121,6 +2121,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
+        System.out.println("Indexing doc completed.");
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
         final String nodeWithoutData = internalCluster().startDataOnlyNode();

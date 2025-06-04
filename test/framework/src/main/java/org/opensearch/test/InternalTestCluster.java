@@ -1544,8 +1544,8 @@ public final class InternalTestCluster extends TestCluster {
                             continue;
                         }
 
-                        System.out.println("Primary: " + docsOnPrimary);
-                        System.out.println("Replica: " + docsOnReplica);
+//                        System.out.println("Primary: " + ((InternalEngine)primaryShard.getEngineOrNull()).getParentIndexWriter());
+//                        System.out.println(" Replica: " + ((InternalEngine)replicaShard.getEngineOrNull()).getParentIndexWriter());
 
                         assertThat(
                             "out of sync shards: primary=["

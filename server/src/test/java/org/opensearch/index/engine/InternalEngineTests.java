@@ -4466,6 +4466,11 @@ public class InternalEngineTests extends EngineTestCase {
                 public ParsedDocument newNoopTombstoneDoc(String reason) {
                     return tombstoneDocSupplier().newNoopTombstoneDoc(reason);
                 }
+
+                @Override
+                public ParsedDocument newDummyNoopTombstoneDocForUpdates(String reason) {
+                    return tombstoneDocSupplier().newDummyNoopTombstoneDocForUpdates(reason);
+                }
             };
             EngineConfig config = config(this.engine.config(), store, createTempDir(), tombstoneDocSupplier);
             try (InternalEngine engine = createEngine(null, null, null, config)) {

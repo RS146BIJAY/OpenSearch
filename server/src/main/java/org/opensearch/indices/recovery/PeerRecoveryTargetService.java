@@ -244,6 +244,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     indexShard.preRecovery();
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                    System.out.println(recoveryTarget.shardId() + " preparing shard for peer recovery");
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
                     if (hasRemoteSegmentStore || indexShard.isRemoteSeeded()) {

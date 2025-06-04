@@ -99,7 +99,7 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope, ReferenceManager<OpenSearchDirectoryReader> referenceManager) throws EngineException {
-        return super.acquireSearcherSupplier(wrapper.andThen(s -> support().wrapSearcher(s)), scope, referenceManager);
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        return super.acquireSearcherSupplier(wrapper.andThen(s -> support().wrapSearcher(s)), scope);
     }
 }

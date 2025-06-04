@@ -57,9 +57,9 @@ public final class LoggerInfoStream extends InfoStream {
 
     @Override
     public void message(String component, String message) {
-        if (component.equals("DWPT")) {
-            System.out.println("For component [" + component + "]: " + message);
-        }
+//        if (component.equals("DWPT")) {
+//            System.out.println("For component [" + component + "]: " + message);
+//        }
 
         getLogger(component).trace("{} {}: {}", Thread.currentThread().getName(), component, message);
     }
@@ -68,9 +68,9 @@ public final class LoggerInfoStream extends InfoStream {
     public boolean isEnabled(String component) {
         // TP is a special "test point" component; we don't want
         // to log it:
-        if (component.equals("DWPT")) {
-            return true;
-        }
+//        if (component.equals("DWPT")) {
+//            return true;
+//        }
 
         return getLogger(component).isTraceEnabled() && component.equals("TP") == false;
     }

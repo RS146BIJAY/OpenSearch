@@ -147,6 +147,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
+    private final MetadataFieldMapper[] dummyNoopTombstoneDocForUpdatesFieldMappers;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
         this.mapperService = mapperService;
@@ -184,6 +185,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name()))
             .toArray(MetadataFieldMapper[]::new);
+        this.dummyNoopTombstoneDocForUpdatesFieldMappers = mapping.metadataMappers;
     }
 
     public Mapping mapping() {
@@ -259,6 +261,16 @@ public class DocumentMapper implements ToXContentFragment {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
         final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        // Store the reason of a noop as a raw string in the _source field
+        final BytesRef byteRef = new BytesRef(reason);
+        parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+        return parsedDoc;
+    }
+
+    public ParsedDocument newDummyNoopTombstoneDocForUpdates(String index, String reason) throws MapperParsingException {
+        final String id = "-2"; // _id won't be used.
+        final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, dummyNoopTombstoneDocForUpdatesFieldMappers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));

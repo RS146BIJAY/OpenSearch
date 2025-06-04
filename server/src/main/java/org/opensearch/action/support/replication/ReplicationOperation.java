@@ -252,18 +252,18 @@ public class ReplicationOperation<
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
 
-        System.out.println("Replica request is executed post indexing on primary " + replicaRequest);
-        if (replicaRequest instanceof BulkShardRequest) {
-            for (BulkItemRequest itemRequest: ((BulkShardRequest) replicaRequest).items()) {
-                if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
-                    System.out.println("Replica request is executed post indexing on retry " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
-                } else {
-                    System.out.println("Replica request is executed post indexing tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
-                }
-            }
-        } else {
-            System.out.println("Non bulk shard request Replica request is executed post indexing on primary " + replicaRequest);
-        }
+//        System.out.println("Replica request is executed post indexing on primary " + replicaRequest);
+//        if (replicaRequest instanceof BulkShardRequest) {
+//            for (BulkItemRequest itemRequest: ((BulkShardRequest) replicaRequest).items()) {
+//                if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
+//                    System.out.println("Replica request is executed post indexing on retry " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
+//                } else {
+//                    System.out.println("Replica request is executed post indexing tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
+//                }
+//            }
+//        } else {
+//            System.out.println("Non bulk shard request Replica request is executed post indexing on primary " + replicaRequest);
+//        }
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();

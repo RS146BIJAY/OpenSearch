@@ -510,6 +510,31 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     null
                 );
             }
+
+            @Override
+            public ParsedDocument newDummyNoopTombstoneDocForUpdates(String reason) {
+                final ParseContext.Document doc = new ParseContext.Document();
+                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+                doc.add(seqID.seqNo);
+                doc.add(seqID.seqNoDocValue);
+                doc.add(seqID.primaryTerm);
+                seqID.tombstoneField.setLongValue(1);
+                doc.add(seqID.tombstoneField);
+                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
+                doc.add(versionField);
+                BytesRef byteRef = new BytesRef(reason);
+                doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+                return new ParsedDocument(
+                    versionField,
+                    seqID,
+                    "-2",
+                    null,
+                    Collections.singletonList(doc),
+                    null,
+                    MediaTypeRegistry.JSON,
+                    null
+                );
+            }
         };
     }
 

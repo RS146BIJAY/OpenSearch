@@ -320,6 +320,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             ? partitionByExpiration.get(false)
             : Collections.emptyList();
         logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
+        System.out.println("expiring retention leases " + expiredLeases + " from current retention leases " + retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
     }
@@ -1156,6 +1157,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (newGlobalCheckpoint > previousGlobalCheckpoint) {
             globalCheckpoint = newGlobalCheckpoint;
             logger.trace("updated global checkpoint from [{}] to [{}] due to [{}]", previousGlobalCheckpoint, globalCheckpoint, reason);
+            System.out.println("updated global checkpoint from " + previousGlobalCheckpoint + " to " + globalCheckpoint + " due to " + reason);
             onGlobalCheckpointUpdated.accept(globalCheckpoint);
         }
         assert invariant();
