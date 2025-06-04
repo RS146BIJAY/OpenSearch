@@ -195,8 +195,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
-//        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
-//        internalCluster().assertSeqNos();
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+        internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
     }
 

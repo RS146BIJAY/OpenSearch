@@ -340,7 +340,7 @@ public class InternalEngine extends Engine {
                 @Override
                 public void beforeRefresh() throws IOException {
                     System.out.println("Refreshing for parent index writer");
-                    refreshDocumentsForParentDirectory(false);
+                    refreshDocumentsForParentDirectory();
                 }
 
                 @Override
@@ -2275,7 +2275,8 @@ public class InternalEngine extends Engine {
                             ? acquireLastIndexCommit(false)
                             : null;
                         System.out.println("starting commit for flush; commitTranslog=true");
-                        refreshDocumentsForParentDirectory(true);
+                        refresh("commit");
+                        commitIndexWriter(parentIndexWriter, translogManager.getTranslogUUID());
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
@@ -2327,7 +2328,7 @@ public class InternalEngine extends Engine {
         return parentIndexWriter.hasUncommittedChanges();
     }
 
-    private synchronized void refreshDocumentsForParentDirectory(final boolean doCommit) throws IOException {
+    private synchronized void refreshDocumentsForParentDirectory() throws IOException {
 //        System.out.println("Refreshing parent IndexWriter for map size " + groupLevelExternalReaderManagersMap.size() + " for IndexWriter " + parentIndexWriter);
         final Map<String, IndexWriter> oldWriterMap = activeChildIndexWriterMap;
         activeChildIndexWriterMap = new ConcurrentHashMap<>();
@@ -2437,12 +2438,17 @@ public class InternalEngine extends Engine {
 //            System.out.println("Refreshed parent IndexWriter count " + testCount.get() + " indexWriter id: " + parentIndexWriter);
             IOUtils.closeWhileHandlingException(directoryToCombine);
 
-            if (doCommit) {
-                commitIndexWriter(parentIndexWriter, translogManager.getTranslogUUID(), maxLocalCheckpoint, maxSeqNo);
+            Iterable<Map.Entry<String, String>> commitDataIterator = parentIndexWriter.getLiveCommitData();
+            final Map<String, String> commitData = new HashMap<>(7);
+            for (Map.Entry<String, String> entry : commitDataIterator) {
+                commitData.put(entry.getKey(), entry.getValue());
             }
 
-        } else if (doCommit){
-            commitIndexWriter(parentIndexWriter, translogManager.getTranslogUUID());
+            commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxLocalCheckpoint));
+            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+
+            parentIndexWriter.setLiveCommitData(() -> commitData.entrySet().iterator(), false);
+
         }
 
         for (Map.Entry<String, Set<IndexWriter>> entry : toBeRemoved.entrySet()) {
@@ -3136,7 +3142,22 @@ public class InternalEngine extends Engine {
     protected void commitIndexWriter(final IndexWriter writer, final String translogUUID) throws IOException {
         translogManager.ensureCanFlush();
         try {
-            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            Iterable<Map.Entry<String, String>> currentCommitData = writer.getLiveCommitData();
+            String currentLocalCheckpoint = String.valueOf(localCheckpointTracker.getProcessedCheckpoint());
+            String currentMaxSeqNo = null;
+            for (Map.Entry<String, String> entry : currentCommitData) {
+                if (entry.getKey().equals(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) {
+                    currentLocalCheckpoint = entry.getValue();
+                }
+
+                if (entry.getKey().equals(SequenceNumbers.MAX_SEQ_NO)) {
+                    currentMaxSeqNo = entry.getValue();
+                }
+            }
+
+            String localCheckpoint = currentLocalCheckpoint;
+            String maxSeqNo = currentMaxSeqNo;
+//            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             writer.setLiveCommitData(() -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
@@ -3149,8 +3170,8 @@ public class InternalEngine extends Engine {
                  */
                 final Map<String, String> commitData = new HashMap<>(7);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
-                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
+                commitData.put(SequenceNumbers.MAX_SEQ_NO, Objects.requireNonNullElseGet(maxSeqNo, () -> Long.toString(localCheckpointTracker.getMaxSeqNo())));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
@@ -3162,7 +3183,6 @@ public class InternalEngine extends Engine {
                 return commitData.entrySet().iterator();
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);
-            System.out.println("Commiting index writer with checkpoint " + localCheckpoint);
             writer.commit();
         } catch (final Exception ex) {
             try {
