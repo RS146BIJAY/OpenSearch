@@ -2381,7 +2381,7 @@ public class InternalEngine extends Engine {
         }
 
         List<Directory> directoryToCombine = new ArrayList<>();
-        long maxSeqNo = -1, maxLocalCheckpoint = -1;
+        long maxLocalCheckpoint = -1;
         for (Map.Entry<String, Set<IndexWriter>> childIndexWritersEntry: markForRefreshChildIndexWriterMap.entrySet()) {
             String criteria = childIndexWritersEntry.getKey();
             for (IndexWriter childIndexWriter: childIndexWritersEntry.getValue()) {
@@ -2419,8 +2419,6 @@ public class InternalEngine extends Engine {
                 for (Map.Entry<String, String> entry : childIndexWriter.getLiveCommitData()) {
                     if (entry.getKey().equals(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) {
                         maxLocalCheckpoint = Math.max(maxLocalCheckpoint, Long.parseLong(entry.getValue()));
-                    } else if (entry.getKey().equals(SequenceNumbers.MAX_SEQ_NO)) {
-                        maxSeqNo = Math.max(maxSeqNo, Long.parseLong(entry.getValue()));
                     }
                 }
 
@@ -2445,7 +2443,6 @@ public class InternalEngine extends Engine {
             }
 
             commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxLocalCheckpoint));
-            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
 
             parentIndexWriter.setLiveCommitData(() -> commitData.entrySet().iterator(), false);
 
@@ -2826,13 +2823,14 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         System.out.println("Closing indexwriter " + parentIndexWriter + " due to " + reason + " stack trace " + Arrays.toString(Thread.currentThread().getStackTrace()));
+        // TODO: Is this needed??
+        // Refresh before closing engine.
+        refresh("close");
         printLastCommitedCheckpoint(parentIndexWriter);
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                // TODO: Is this needed??
-//                refreshDocumentsForParentDirectory(false);
 //                if (parentIndexWriter.isOpen()) {
 //                    parentIndexWriter.close();
 //                }
@@ -3144,19 +3142,14 @@ public class InternalEngine extends Engine {
         try {
             Iterable<Map.Entry<String, String>> currentCommitData = writer.getLiveCommitData();
             String currentLocalCheckpoint = String.valueOf(localCheckpointTracker.getProcessedCheckpoint());
-            String currentMaxSeqNo = null;
             for (Map.Entry<String, String> entry : currentCommitData) {
                 if (entry.getKey().equals(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) {
                     currentLocalCheckpoint = entry.getValue();
-                }
-
-                if (entry.getKey().equals(SequenceNumbers.MAX_SEQ_NO)) {
-                    currentMaxSeqNo = entry.getValue();
+                    break;
                 }
             }
 
             String localCheckpoint = currentLocalCheckpoint;
-            String maxSeqNo = currentMaxSeqNo;
 //            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             writer.setLiveCommitData(() -> {
                 /*
@@ -3171,7 +3164,7 @@ public class InternalEngine extends Engine {
                 final Map<String, String> commitData = new HashMap<>(7);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
-                commitData.put(SequenceNumbers.MAX_SEQ_NO, Objects.requireNonNullElseGet(maxSeqNo, () -> Long.toString(localCheckpointTracker.getMaxSeqNo())));
+                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
