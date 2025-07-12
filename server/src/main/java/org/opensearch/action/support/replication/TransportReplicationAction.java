@@ -1196,7 +1196,7 @@ public abstract class TransportReplicationAction<
                                 exp
                             );
 
-                            System.out.println("received an error from node " + node.getId() + " for request [" + requestToPerform + "]" + " with isPrimary " + isPrimaryAction);
+//                            System.out.println("received an error from node " + node.getId() + " for request [" + requestToPerform + "]" + " with isPrimary " + isPrimaryAction);
                             retry(exp);
                         } else {
                             finishAsFailed(exp);
@@ -1218,7 +1218,7 @@ public abstract class TransportReplicationAction<
             }
             setPhase(task, "waiting_for_retry");
             request.onRetry();
-            System.out.println("Retrying " + request);
+            System.out.println("Retrying " + request + " with error " + failure);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

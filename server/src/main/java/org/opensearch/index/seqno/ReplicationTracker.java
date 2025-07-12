@@ -320,7 +320,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             ? partitionByExpiration.get(false)
             : Collections.emptyList();
         logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
-        System.out.println("expiring retention leases " + expiredLeases + " from current retention leases " + retentionLeases);
+//        System.out.println("expiring retention leases " + expiredLeases + " from current retention leases " + retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
     }
@@ -1157,7 +1157,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (newGlobalCheckpoint > previousGlobalCheckpoint) {
             globalCheckpoint = newGlobalCheckpoint;
             logger.trace("updated global checkpoint from [{}] to [{}] due to [{}]", previousGlobalCheckpoint, globalCheckpoint, reason);
-            System.out.println("updated global checkpoint from " + previousGlobalCheckpoint + " to " + globalCheckpoint + " due to " + reason);
+//            System.out.println("updated global checkpoint from " + previousGlobalCheckpoint + " to " + globalCheckpoint + " due to " + reason);
             onGlobalCheckpointUpdated.accept(globalCheckpoint);
         }
         assert invariant();
@@ -1387,7 +1387,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 + " when activating primary";
         assert localCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         primaryMode = true;
-        System.out.println("Primary mode activated for replica shard");
+//        System.out.println("Primary mode activated for replica shard");
         updateLocalCheckpoint(shardAllocationId, checkpoints.get(shardAllocationId), localCheckpoint);
         updateGlobalCheckpointOnPrimary();
 
@@ -1622,7 +1622,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode;
         assert handoffInProgress == false;
         CheckpointState cps = checkpoints.get(allocationId);
-        System.out.println("Marking Allocation id " + allocationId + " as sync");
+//        System.out.println("Marking Allocation id " + allocationId + " as sync");
         if (cps == null) {
             // can happen if replica was removed from cluster but recovery process is unaware of it yet
             throw new IllegalStateException("no local checkpoint tracking information available for " + allocationId);
@@ -1646,7 +1646,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (cps.replicated && cps.localCheckpoint < getGlobalCheckpoint()) {
             pendingInSync.add(allocationId);
             try {
-                System.out.println("Waiting for local checkpoint to advance");
+//                System.out.println("Waiting for local checkpoint to advance");
                 while (true) {
                     if (pendingInSync.contains(allocationId)) {
                         waitForLocalCheckpointToAdvance();
@@ -1655,7 +1655,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     }
                 }
             } finally {
-                System.out.println("Local checkpoint advanced");
+//                System.out.println("Local checkpoint advanced");
                 pendingInSync.remove(allocationId);
             }
         } else {
@@ -1715,7 +1715,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             pending = false;
             cps.inSync = true;
             updateReplicationGroupAndNotify();
-            System.out.println("marked " + allocationId + " as in-sync");
+//            System.out.println("marked " + allocationId + " as in-sync");
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
@@ -1763,7 +1763,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + "] is lower than previous one ["
             + globalCheckpoint
             + "]";
-        System.out.println("updated global checkpoint to " + globalCheckpoint + " computed global checkpoint " + computedGlobalCheckpoint);
+//        System.out.println("updated global checkpoint to " + globalCheckpoint + " computed global checkpoint " + computedGlobalCheckpoint);
         if (globalCheckpoint != computedGlobalCheckpoint) {
             globalCheckpoint = computedGlobalCheckpoint;
             logger.trace("updated global checkpoint to [{}]", computedGlobalCheckpoint);

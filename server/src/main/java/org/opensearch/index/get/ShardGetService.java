@@ -235,6 +235,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             )
         ) {
             if (get == null || get.exists() == false) {
+                System.out.println("Get result does not exist or is null " + id + " get " + get);
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }
             // break between having loaded it from translog (so we only have _source), and having a document to load

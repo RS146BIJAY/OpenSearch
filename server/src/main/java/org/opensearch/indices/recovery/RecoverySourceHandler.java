@@ -607,7 +607,7 @@ public abstract class RecoverySourceHandler {
             //
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
             logger.trace("cloning primary's retention lease");
-            System.out.println("cloning primary's retention lease");
+//            System.out.println("cloning primary's retention lease");
             try {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
@@ -615,10 +615,10 @@ public abstract class RecoverySourceHandler {
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                System.out.println("cloned primary's retention lease as " + clonedLease);
+//                System.out.println("cloned primary's retention lease as " + clonedLease);
                 cloneRetentionLeaseStep.whenComplete(rr -> {
                     logger.debug("cloneRetentionLeaseStep completed");
-                    System.out.println("cloneRetentionLeaseStep completed");
+//                    System.out.println("cloneRetentionLeaseStep completed");
                     listener.onResponse(clonedLease);
                 }, listener::onFailure);
             } catch (RetentionLeaseNotFoundException e) {
@@ -723,7 +723,7 @@ public abstract class RecoverySourceHandler {
             throw new IndexShardClosedException(request.shardId());
         }
         logger.trace("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
-        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
+//        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
         final StopWatch stopWatch = new StopWatch().start();
         final StepListener<Void> sendListener = new StepListener<>();
         final OperationBatchSender sender = new OperationBatchSender(
@@ -751,7 +751,7 @@ public abstract class RecoverySourceHandler {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase2]: took [{}]", tookTime);
-            System.out.println("recovery [phase2]: took " + tookTime);
+//            System.out.println("recovery [phase2]: took " + tookTime);
             listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
         }, listener::onFailure);
         sender.start();

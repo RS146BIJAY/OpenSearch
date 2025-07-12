@@ -1392,6 +1392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper == null) {
+            System.out.println("Mapper is null " + get.id());
             return GetResult.NOT_EXISTS;
         }
         return getEngine().get(get, this::acquireSearcher);
@@ -2741,7 +2742,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         Engine engine = getEngine();
-        System.out.println("Calling refresh for recovery finalization");
+//        System.out.println("Calling refresh for recovery finalization");
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);
     }
@@ -4425,7 +4426,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
 
-                    System.out.println("Updating primary term inside innerAcquireReplicaOperationPermit.");
+//                    System.out.println("Updating primary term inside innerAcquireReplicaOperationPermit.");
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                         final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();

@@ -747,6 +747,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             return new GetResult(searcher, docIdAndVersion, false);
         } else {
             Releasables.close(searcher);
+            System.out.println("Get does not exists from searcher " + get.id);
             return GetResult.NOT_EXISTS;
         }
     }

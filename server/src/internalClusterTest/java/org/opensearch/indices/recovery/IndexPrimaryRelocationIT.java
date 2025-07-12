@@ -71,7 +71,7 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
                 IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                 DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
-                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                assertEquals("expected:<DELETED> but was:<NOT_FOUND> for seqNo " + deleteResponse.getSeqNo(), DocWriteResponse.Result.DELETED, deleteResponse.getResult());
                 client().prepareIndex("test").setSource("auto", true).get();
                 numAutoGenDocs.incrementAndGet();
             }

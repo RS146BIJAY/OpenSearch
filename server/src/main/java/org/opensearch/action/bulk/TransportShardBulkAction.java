@@ -716,7 +716,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     logger.debug(messageSupplier, failure);
                 }
 
-                System.out.println(messageSupplier.get());
+//                System.out.println(messageSupplier.get());
             }
             response = executionResult;
         }
@@ -849,7 +849,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     continue; // ignore replication as it's a noop
                 }
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-                System.out.println("Applying indexing operation on replica id: " + response.getResponse().getId() + " term: " + response.getResponse().getPrimaryTerm() + " version: " + response.getResponse().getVersion());
+//                System.out.println("Applying indexing operation on replica id: " + response.getResponse().getId() + " term: " + response.getResponse().getPrimaryTerm() + " version: " + response.getResponse().getVersion());
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";

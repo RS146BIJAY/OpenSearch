@@ -1998,6 +1998,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         );
         ensureGreen(indexName);
         final long maxSeqNoAfterRecovery = primary.seqNoStats().getMaxSeqNo();
+        System.out.println("MaxSeqNoBeforeRecovery " + maxSeqNoBeforeRecovery + " MaxSeqNoAfterRecovery " + maxSeqNoAfterRecovery);
 
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = client().admin()

@@ -90,6 +90,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         final String healthTimeout = "1m";
 
         for (int i = 0; i < 1000; i++) {
+            System.out.println("Indexing doc " + i);
             client().prepareIndex("test")
                 .setId(Long.toString(i))
                 .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())
@@ -98,6 +99,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
+            System.out.println("Indexing doc " + i);
             client().prepareIndex("test")
                 .setId(Long.toString(i))
                 .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())

@@ -364,7 +364,7 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Deprecated
     );
-    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(5, TimeUnit.SECONDS);
+    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue MINIMUM_REFRESH_INTERVAL = new TimeValue(-1, TimeUnit.MILLISECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",

@@ -228,7 +228,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             VersionValue previousValue = current.remove(uid);
             current.removeDeleteEntry(uid);
             if (deleteEntry != null) {
-//                System.out.println("Adding delete entry " + deleteEntry);
+                System.out.println("Adding delete entry " + deleteEntry);
                 current.putLastDeleteEntry(uid, deleteEntry);
             }
 
@@ -383,18 +383,22 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
     void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version, DeleteEntry entry) {
+        System.out.println("Adding entry in live version map with delete entry " + entry);
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
-        if (maps.isSafeAccessMode()) {
-            putIndexUnderLock(uid, version, entry);
-        } else {
-            // Even though we don't store a record of the indexing operation (and mark as unsafe),
-            // we should still remove any previous delete for this uuid (avoid accidental accesses).
-            // Not this should not hurt performance because the tombstone is small (or empty) when unsafe is relevant.
-            removeTombstoneUnderLock(uid);
-            maps.current.markAsUnsafe();
-            assert putAssertionMap(uid, version);
-        }
+        // TODO: Fix this.
+//        if (maps.isSafeAccessMode()) {
+//            putIndexUnderLock(uid, version, entry);
+//        } else {
+//            // Even though we don't store a record of the indexing operation (and mark as unsafe),
+//            // we should still remove any previous delete for this uuid (avoid accidental accesses).
+//            // Not this should not hurt performance because the tombstone is small (or empty) when unsafe is relevant.
+//            removeTombstoneUnderLock(uid);
+//            maps.current.markAsUnsafe();
+//            assert putAssertionMap(uid, version);
+//        }
+
+        putIndexUnderLock(uid, version, entry);
     }
 
     void putIndexUnderLock(BytesRef uid, IndexVersionValue version, DeleteEntry entry) {
@@ -541,6 +545,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      */
     Map<BytesRef, VersionValue> getAllCurrent() {
         return maps.current.map;
+    }
+
+    Map<BytesRef, VersionValue> getAllOld() {
+        return maps.old.map;
     }
 
     Map<BytesRef, DeleteEntry> getLastDeleteEntrySet() {

@@ -157,7 +157,7 @@ public class ReplicationOperation<
         this.primaryResult = primaryResult;
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
-            System.out.println(primary.routingEntry().shardId() + " op " + opType + " completed on primary for request " + request);
+//            System.out.println(primary.routingEntry().shardId() + " op " + opType + " completed on primary for request " + request);
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }

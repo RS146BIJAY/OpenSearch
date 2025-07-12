@@ -202,6 +202,9 @@ public class SimpleMgetIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             assertThat(responseItem.getIndex(), equalTo("test"));
             if (i % 2 == 0) {
                 Map<String, Object> source = responseItem.getResponse().getSourceAsMap();
+                if (source == null) {
+                    System.out.println("Source is null for Id " + i);
+                }
                 assertThat(source.size(), equalTo(1));
                 assertThat(source, hasKey("included"));
                 assertThat(((Map<String, Object>) source.get("included")).size(), equalTo(1));
