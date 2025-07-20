@@ -1392,7 +1392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper == null) {
-            System.out.println("Mapper is null " + get.id());
+//            System.out.println("Mapper is null " + get.id());
             return GetResult.NOT_EXISTS;
         }
         return getEngine().get(get, this::acquireSearcher);
@@ -2298,7 +2298,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 getEngine().translogManager()
                     .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), globalCheckpoint);
                 logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
-                System.out.println("shard locally recovered up to " + getEngine().getSeqNoStats(globalCheckpoint));
+//                System.out.println("shard locally recovered up to " + getEngine().getSeqNoStats(globalCheckpoint));
             } finally {
                 synchronized (engineMutex) {
                     IOUtils.close(currentEngineReference.getAndSet(null));
@@ -2409,7 +2409,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         final Engine.Result result;
-        System.out.println("Translog operation applied " + operation);
+//        System.out.println("Translog operation applied " + operation);
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
@@ -2471,7 +2471,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while ((operation = snapshot.next()) != null) {
             try {
                 logger.trace("[translog] recover op {}", operation);
-                System.out.println("[translog] recover op " + operation);
+//                System.out.println("[translog] recover op " + operation);
                 Engine.Result result = applyTranslogOperation(engine, operation, origin);
                 switch (result.getResultType()) {
                     case FAILURE:

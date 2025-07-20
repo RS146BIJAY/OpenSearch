@@ -268,7 +268,7 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument newDummyNoopTombstoneDocForUpdates(String index, String reason) throws MapperParsingException {
-        final String id = "-2"; // _id won't be used.
+        final String id = "-2"; // TODO: _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
         final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, dummyNoopTombstoneDocForUpdatesFieldMappers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field

@@ -149,6 +149,7 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz"));
         assertBulkSuccess(bulk.get());
+//        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
         // Delete by bulk with RefreshPolicy.WAIT_UNTIL

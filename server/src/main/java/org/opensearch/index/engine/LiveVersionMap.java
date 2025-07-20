@@ -228,7 +228,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             VersionValue previousValue = current.remove(uid);
             current.removeDeleteEntry(uid);
             if (deleteEntry != null) {
-                System.out.println("Adding delete entry " + deleteEntry);
+//                System.out.println("Adding delete entry " + deleteEntry);
                 current.putLastDeleteEntry(uid, deleteEntry);
             }
 
@@ -383,7 +383,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
     void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version, DeleteEntry entry) {
-        System.out.println("Adding entry in live version map with delete entry " + entry);
+//        System.out.println("Adding entry in live version map with delete entry " + entry);
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
         // TODO: Fix this.
@@ -545,6 +545,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      */
     Map<BytesRef, VersionValue> getAllCurrent() {
         return maps.current.map;
+    }
+
+    int getSize() {
+        return maps.current.map.size() + maps.old.map.size();
     }
 
     Map<BytesRef, VersionValue> getAllOld() {

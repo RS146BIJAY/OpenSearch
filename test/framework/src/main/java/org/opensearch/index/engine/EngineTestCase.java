@@ -1544,7 +1544,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 }
             }
             assertThat(luceneOp, notNullValue());
-            System.out.println("Ops comparison, luceneOp: " + luceneOp.toString() + " translogOp " + translogOp.toString());
+//            System.out.println("Ops comparison, luceneOp: " + luceneOp.toString() + " translogOp " + translogOp.toString());
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {

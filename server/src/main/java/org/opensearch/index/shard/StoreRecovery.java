@@ -171,6 +171,7 @@ final class StoreRecovery {
             final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from local shards {}", shards);
+
                 try {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
