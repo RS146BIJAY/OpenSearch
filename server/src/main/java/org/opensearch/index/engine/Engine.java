@@ -157,9 +157,6 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
 
-    protected final Map<String, ReentrantReadWriteLock> childLevelReadWriteLocks = new ConcurrentHashMap<>();
-    protected final Map<String, ReleasableLock> childLevelReadLocks = new ConcurrentHashMap<>();
-    protected final Map<String, ReleasableLock> childLevelWriteLocks = new ConcurrentHashMap<>();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:

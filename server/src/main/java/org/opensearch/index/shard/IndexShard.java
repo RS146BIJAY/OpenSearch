@@ -1392,7 +1392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper == null) {
-            System.out.println("Mapper is null " + get.id());
+//            System.out.println("Mapper is null " + get.id());
             return GetResult.NOT_EXISTS;
         }
         return getEngine().get(get, this::acquireSearcher);

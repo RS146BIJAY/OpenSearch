@@ -1387,7 +1387,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 + " when activating primary";
         assert localCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         primaryMode = true;
-//        System.out.println("Primary mode activated for replica shard");
+        System.out.println("Primary mode activated for replica shard");
         updateLocalCheckpoint(shardAllocationId, checkpoints.get(shardAllocationId), localCheckpoint);
         updateGlobalCheckpointOnPrimary();
 

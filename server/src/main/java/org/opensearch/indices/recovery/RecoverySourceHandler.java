@@ -483,8 +483,8 @@ public abstract class RecoverySourceHandler {
                     totalSizeInBytes += md.length();
                 }
 
-//                System.out.println("recovery [phase1]: recovering_files " + String.join(", ", phase1FileNames)
-//                    + " reusing_files " + String.join(", ", phase1ExistingFileNames));
+                System.out.println("recovery [phase1]: recovering_files " + String.join(", ", phase1FileNames)
+                    + " reusing_files " + String.join(", ", phase1ExistingFileNames));
                 logger.trace(
                     "recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
                     phase1FileNames.size(),
@@ -507,7 +507,7 @@ public abstract class RecoverySourceHandler {
                 );
 
                 sendFileInfoStep.whenComplete(r -> {
-//                    System.out.println("sendFileInfoStep completed");
+                    System.out.println("sendFileInfoStep completed");
                     logger.debug("sendFileInfoStep completed");
                     sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep);
                 }, listener::onFailure);
@@ -515,13 +515,13 @@ public abstract class RecoverySourceHandler {
                 // When doing peer recovery of remote store enabled replica, retention leases are not required.
                 if (skipCreateRetentionLeaseStep) {
                     sendFilesStep.whenComplete(r -> {
-//                        System.out.println("sendFilesStep completed");
+                        System.out.println("sendFilesStep completed");
                         logger.debug("sendFilesStep completed");
                         createRetentionLeaseStep.onResponse(null);
                     }, listener::onFailure);
                 } else {
                     sendFilesStep.whenComplete(r -> {
-//                        System.out.println("sendFilesStep completed");
+                        System.out.println("sendFilesStep completed");
                         logger.debug("sendFilesStep completed");
                         createRetentionLease(startingSeqNo, createRetentionLeaseStep);
                     }, listener::onFailure);
@@ -541,10 +541,10 @@ public abstract class RecoverySourceHandler {
                 final long totalSize = totalSizeInBytes;
                 final long existingTotalSize = existingTotalSizeInBytes;
                 cleanFilesStep.whenComplete(r -> {
-//                    System.out.println("cleanFilesStep completed");
+                    System.out.println("cleanFilesStep completed");
                     logger.debug("cleanFilesStep completed");
                     final TimeValue took = stopWatch.totalTime();
-//                    System.out.println("recovery [phase1]: took: " + took);
+                    System.out.println("recovery [phase1]: took: " + took);
                     logger.trace("recovery [phase1]: took [{}]", took);
                     listener.onResponse(
                         new SendFileResult(
@@ -680,6 +680,7 @@ public abstract class RecoverySourceHandler {
     }
 
     void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
+        System.out.println("Total translog ops replayed " + totalTranslogOps);
         StopWatch stopWatch = new StopWatch().start();
         final ActionListener<Void> wrappedListener = ActionListener.wrap(nullVal -> {
             stopWatch.stop();
@@ -723,7 +724,7 @@ public abstract class RecoverySourceHandler {
             throw new IndexShardClosedException(request.shardId());
         }
         logger.trace("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
-//        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
+        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
         final StopWatch stopWatch = new StopWatch().start();
         final StepListener<Void> sendListener = new StepListener<>();
         final OperationBatchSender sender = new OperationBatchSender(
@@ -751,7 +752,7 @@ public abstract class RecoverySourceHandler {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase2]: took [{}]", tookTime);
-//            System.out.println("recovery [phase2]: took " + tookTime);
+            System.out.println("recovery [phase2]: took " + tookTime);
             listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
         }, listener::onFailure);
         sender.start();
@@ -877,7 +878,7 @@ public abstract class RecoverySourceHandler {
         }
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
-//        System.out.println("finalizing recovery");
+        System.out.println("finalizing recovery");
         /*
          * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
          * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
@@ -896,7 +897,7 @@ public abstract class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
         finalizeListener.whenComplete(r -> {
-//            System.out.println("finalizeListenerStep completed");
+            System.out.println("finalizeListenerStep completed");
             RunUnderPrimaryPermit.run(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
@@ -928,7 +929,7 @@ public abstract class RecoverySourceHandler {
                 }
             }
             stopWatch.stop();
-//            System.out.println("finalizing recovery took " + stopWatch.totalTime());
+            System.out.println("finalizing recovery took " + stopWatch.totalTime());
             listener.onResponse(null);
         }, listener::onFailure);
     }
