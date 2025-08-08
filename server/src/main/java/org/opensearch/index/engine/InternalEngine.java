@@ -1186,11 +1186,11 @@ public class InternalEngine extends Engine {
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
-//                if (index.origin() == Operation.Origin.PRIMARY) {
-//                    System.out.println("After indexing persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
-//                } else {
-//                    System.out.println("After indexing persisted " + index.origin() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
-//                }
+                if (index.origin() == Operation.Origin.PRIMARY) {
+                    System.out.println("After indexing persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
+                } else {
+                    System.out.println("After indexing persisted " + index.origin() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
+                }
 
 //                System.out.println("Live version map size " + liveIndexWriterDeletesMap.getCurrentSize() + " old size " + liveIndexWriterDeletesMap.getMarkForRefreshIndexWriterSize());
                 return indexResult;
@@ -1820,11 +1820,13 @@ public class InternalEngine extends Engine {
                     LiveIndexWriterDeletesMap.DisposableIndexWriter currentDisposableWriter = liveIndexWriterDeletesMap.getIndexWriterForIdFromCurrent(delete.uid().bytes());
                     if (currentDisposableWriter != null) {
                         try(ReleasableLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()) {
+                            System.out.println("Delete with seqNo " + delete.seqNo() + " went to child writer " + currentDisposableWriter.getIndexWriter() + " with parent writer " + parentIndexWriter);
                             deleteResult = deleteInLucene(delete, plan, currentDisposableWriter.getIndexWriter());
                             currentDisposableWriter.getLookupMap().putLastDeleteEntry(delete.uid().bytes(),
                                 new DeleteEntry("-1", delete.seqNo(), delete.primaryTerm(), plan.versionOfDeletion, delete.uid(), null));
                         }
                     } else {
+                        System.out.println("Delete with seqNo " + delete.seqNo() + " went to parent writer " + parentIndexWriter);
                         deleteResult = deleteInLucene(delete, plan, parentIndexWriter);
                         liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInNewMap(delete.uid().bytes(),
                             new DeleteEntry("-1", delete.seqNo(), delete.primaryTerm(), plan.versionOfDeletion, delete.uid(), null));
@@ -1869,7 +1871,7 @@ public class InternalEngine extends Engine {
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
-//            System.out.println("After delete persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + deleteResult.getSeqNo() + " with version " + deleteResult.getVersion() + " parent writer " + parentIndexWriter);
+            System.out.println("After delete persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + deleteResult.getSeqNo() + " with version " + deleteResult.getVersion() + " parent writer " + parentIndexWriter);
         } catch (RuntimeException | IOException e) {
             try {
                 maybeFailEngine("delete", e);
@@ -3231,13 +3233,8 @@ public class InternalEngine extends Engine {
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);
 
-            // Force flush is called only when shard is getting initialised for the first time. In that avoid refresh as it requires a lock on mutex,
-            // which is already held inside updateShardState.
-//            if (!force) {
-//
-//            }
-
-            refresh("commit");
+            // To sync document during commit. This keeps documents during commit always ahead of checkpoint.
+            refresh("commit", SearcherScope.INTERNAL, true);
 
             writer.commit();
         } catch (final Exception ex) {
@@ -3507,7 +3504,7 @@ public class InternalEngine extends Engine {
      */
     protected final void refreshIfNeeded(String source, long requestingSeqNo) {
         long lastRefreshCheckpoint = lastRefreshedCheckpoint();
-//        System.out.println("refreshIfNeeded LastRefreshCheckpoint " + lastRefreshCheckpoint + "  requestingSeqNo " + requestingSeqNo + " for writer " + parentIndexWriter);
+        System.out.println("refreshIfNeeded LastRefreshCheckpoint " + lastRefreshCheckpoint + "  requestingSeqNo " + requestingSeqNo + " for writer " + parentIndexWriter);
         if (lastRefreshCheckpoint < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {

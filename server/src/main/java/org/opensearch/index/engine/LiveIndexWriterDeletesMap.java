@@ -317,15 +317,6 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
         maps.putCriteriaForDoc(uid, criteria);
     }
 
-    private DisposableIndexWriter getIndexWriterForIdFromMap(BytesRef uid, CriteriaBasedIndexWriterLookup currentMaps) {
-        String criteria = getCriteriaForDoc(uid);
-        if (criteria != null) {
-            return currentMaps.getIndexWriterForCriteria(criteria);
-        }
-
-        return null;
-    }
-
     DisposableIndexWriter getIndexWriterForIdFromCurrent(BytesRef uid) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;

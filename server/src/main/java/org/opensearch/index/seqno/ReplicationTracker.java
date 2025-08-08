@@ -1647,7 +1647,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (cps.replicated && cps.localCheckpoint < getGlobalCheckpoint()) {
             pendingInSync.add(allocationId);
             try {
-                System.out.println("Waiting for local checkpoint to advance");
+                System.out.println("Waiting for local checkpoint " + cps.localCheckpoint + " to advance " + getGlobalCheckpoint());
                 while (true) {
                     if (pendingInSync.contains(allocationId)) {
                         waitForLocalCheckpointToAdvance();
@@ -1676,6 +1676,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + "] for shard copy ["
             + allocationId
             + "]";
+//        System.out.println("Trying to update local checkpoint " + allocationId + " to " + localCheckpoint + " with cps checkpoint " + cps.localCheckpoint);
         if (localCheckpoint > cps.localCheckpoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, cps.localCheckpoint, localCheckpoint);
             System.out.println("updated local checkpoint of " + allocationId + " from " + cps.localCheckpoint + " to "
