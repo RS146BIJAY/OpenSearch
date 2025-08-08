@@ -607,7 +607,7 @@ public abstract class RecoverySourceHandler {
             //
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
             logger.trace("cloning primary's retention lease");
-//            System.out.println("cloning primary's retention lease");
+            System.out.println("cloning primary's retention lease");
             try {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
@@ -615,10 +615,10 @@ public abstract class RecoverySourceHandler {
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-//                System.out.println("cloned primary's retention lease as " + clonedLease);
+                System.out.println("cloned primary's retention lease as " + clonedLease);
                 cloneRetentionLeaseStep.whenComplete(rr -> {
                     logger.debug("cloneRetentionLeaseStep completed");
-//                    System.out.println("cloneRetentionLeaseStep completed");
+                    System.out.println("cloneRetentionLeaseStep completed");
                     listener.onResponse(clonedLease);
                 }, listener::onFailure);
             } catch (RetentionLeaseNotFoundException e) {
@@ -635,9 +635,11 @@ public abstract class RecoverySourceHandler {
                 );
                 addRetentionLeaseStep.whenComplete(rr -> {
                     logger.debug("addRetentionLeaseStep completed");
+                    System.out.println("addRetentionLeaseStep completed");
                     listener.onResponse(newLease);
                 }, listener::onFailure);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
+                System.out.println("created retention lease with estimated checkpoint of " + estimatedGlobalCheckpoint);
             }
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
     }
@@ -830,7 +832,7 @@ public abstract class RecoverySourceHandler {
                     continue;
                 }
 
-                System.out.println("Translog operation getting applied " + operation);
+//                System.out.println("Translog operation getting applied " + operation);
                 ops.add(operation);
                 batchSizeInBytes += operation.estimateSize();
                 sentOps.incrementAndGet();
@@ -895,6 +897,7 @@ public abstract class RecoverySourceHandler {
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
+        System.out.println("Starting finalising recovery.");
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
         finalizeListener.whenComplete(r -> {
             System.out.println("finalizeListenerStep completed");

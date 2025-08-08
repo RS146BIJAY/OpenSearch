@@ -1581,6 +1581,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void rollTranslogGeneration() throws IOException {
         final Engine engine = getEngine();
+        System.out.println("Roll translog generation");
         engine.translogManager().rollTranslogGeneration();
     }
 
@@ -2374,6 +2375,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
+        System.out.println("Trim operations from translog.");
         getEngine().translogManager().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
     }
 
@@ -2409,7 +2411,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         final Engine.Result result;
-        System.out.println("Translog operation applied " + operation);
+//        System.out.println("Translog operation applied " + operation);
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
@@ -2742,7 +2744,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         Engine engine = getEngine();
-//        System.out.println("Calling refresh for recovery finalization");
+        System.out.println("Calling refresh for recovery finalization");
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);
     }
@@ -3212,7 +3214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         assert assertPrimaryMode();
         verifyNotClosed();
-//        System.out.println("Updating local checkpoint for shard [" + shardId + "]");
+//        System.out.println("Updating local checkpoint for shard [" + shardId + "] to " + checkpoint);
         replicationTracker.updateLocalCheckpoint(allocationId, checkpoint);
     }
 

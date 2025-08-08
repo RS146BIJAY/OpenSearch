@@ -55,6 +55,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
@@ -91,7 +92,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.DisposableIndexWriter;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -123,6 +123,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -138,7 +139,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
@@ -221,7 +221,6 @@ public class InternalEngine extends Engine {
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
-    private final AtomicLong testCount = new AtomicLong(0);
 
     /**
      * If multiple writes passed {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)} but they haven't adjusted
@@ -263,7 +262,7 @@ public class InternalEngine extends Engine {
         store.incRef();
 //        System.out.println("Inc ref called during Engine intialization");
         IndexWriter writer = null;
-        ExternalReaderManager externalReaderManager = null;
+        ExternalReaderManager externalReaderManager1 = null;
         OpenSearchReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
         TranslogManager translogManagerRef = null;
@@ -331,10 +330,10 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), parentIndexWriter);
-            internalReaderManager = externalReaderManager.internalReaderManager;
+            externalReaderManager1 = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig), parentIndexWriter);
+            internalReaderManager = externalReaderManager1.internalReaderManager;
             this.internalReaderManager = internalReaderManager;
-            this.externalReaderManager = externalReaderManager;
+            this.externalReaderManager = externalReaderManager1;
             internalReaderManager.addListener(versionMap);
             for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
                 this.externalReaderManager.addListener(listener);
@@ -352,13 +351,22 @@ public class InternalEngine extends Engine {
 
                 @Override
                 public void beforeRefresh() throws IOException {
-//                    System.out.println("Refreshing for parent index writer " + parentIndexWriter + " " + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
-//                    System.out.println("Refreshing with seqNo " + localCheckpointTracker.getProcessedCheckpoint() + " for parent index writer " + parentIndexWriter);
+                    // TODO No more write should happen post this, so that before refresh for syncing writers have all old writers available.
+                    // TODO Or should we do this in Reader before listner where we are syncing data??
                     refreshDocumentsForParentDirectory();
+
+//                    System.out.println("Refreshing for parent index writer " + parentIndexWriter + " " + Arrays.toString(Thread.currentThread().getStackTrace()).replace(',', '\n'));
+//                    System.out.println("Refreshing with seqNo " + localCheckpointTracker.getProcessedCheckpoint() + " for parent index writer " + parentIndexWriter);
                 }
 
                 @Override
                 public void afterRefresh(boolean didRefresh) throws IOException {
+//                    if (externalReaderManager.isWarmedUp) {
+//                        try (Searcher searcher = acquireSearcher("test")) {
+//                            System.out.println("Count of document " + searcher.count(new MatchAllDocsQuery()) + " with seqTracker " + localCheckpointTracker.getProcessedCheckpoint() + " parent writer " + parentIndexWriter);
+//                        }
+//                    }
+
 //                    System.out.println("After parent refresh " + parentIndexWriter  + " with size " + liveIndexWriterDeletesMap.getLastDeleteEntrySize());
                 }
             });
@@ -383,7 +391,7 @@ public class InternalEngine extends Engine {
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(liveIndexWriterDeletesMap);
-                IOUtils.closeWhileHandlingException(writer, translogManagerRef, internalReaderManager, externalReaderManager, scheduler);
+                IOUtils.closeWhileHandlingException(writer, translogManagerRef, internalReaderManager, externalReaderManager1, scheduler);
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
                     store.decRef();
@@ -1009,15 +1017,15 @@ public class InternalEngine extends Engine {
     public IndexResult index(Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
-        System.out.println("Index operation called with origin " + index.origin() + " for parent writer " + parentIndexWriter);
+//        System.out.println("Index operation called with origin " + index.origin() + " with seqNo " + index.seqNo() + " for parent writer " + parentIndexWriter);
         String criteria = getGroupingCriteriaForDoc(index.docs());
         // We obtain a read lock on a child level IndexWriter and then return it. Post Indexing completes, we close this
         // IndexWriter.
-        DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
+        LiveIndexWriterDeletesMap.DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
 //        System.out.println("Before indexing, Live version map size " + liveIndexWriterDeletesMap.getCurrentSize() + " old size " + liveIndexWriterDeletesMap.getMarkForRefreshIndexWriterSize());
         try (ReleasableLock releasableLock = readLock.acquire();
-            ReleasableLock ignoreLock = disposableIndexWriter.getReadLock()) {
-//            System.out.println("Acquired child level lock on indexWriter " + disposableIndexWriter.getIndexWriter() + " with parent writer " + parentIndexWriter);
+            ReleasableLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
+//            System.out.println("Acquired child level lock on disposableIndexWriter " + disposableIndexWriter.getIndexWriter() + " with parent writer " + parentIndexWriter);
             ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             int reservedDocs = 0;
@@ -1091,8 +1099,6 @@ public class InternalEngine extends Engine {
 
                     if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
                         indexResult = indexIntoLucene(index, plan, disposableIndexWriter.getIndexWriter());
-//                        System.out.println("Indexing result output " + " for index id " + index.id() + " is "
-//                            + indexResult + " with failure " + indexResult.getFailure());
                     } else {
                         indexResult = new IndexResult(
                             plan.versionForIndexing,
@@ -1126,33 +1132,47 @@ public class InternalEngine extends Engine {
                 }
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
-                    DeleteEntry entry;
+                    if (plan.useLuceneUpdateDocument) {
+                        // Since lock is already available on corresponding map, we should not worry about lock being rotated.
+                        disposableIndexWriter.getLookupMap().putLastDeleteEntry(index.uid().bytes(),
+                            new DeleteEntry(index.id(), index.seqNo(), index.primaryTerm(), plan.versionForIndexing - 1, index.uid(), disposableIndexWriter.getIndexWriter()));
+                    }
+
+//                    DeleteEntry entry;
 
                     // TODO: Entry can be null for first version or if there is term bum up (validate if this is because we need to keep previous version).
                     //  Validate if this is going wrong?? Last entry should be checked to handle scenario when there is a indexing post delete.
                     // In that scenario we will replace delete entry with an index entry.
 //                    check for term bump up, deletion and first version
-                    if (plan.currentNotFoundOrDeleted && liveIndexWriterDeletesMap.getLastDeleteEntryUnderLock(index.uid().bytes()) == null) {
-//                        System.out.println("Skipping adding delete entry with currentNotFoundOrDeleted " + plan.currentNotFoundOrDeleted);
-                        entry = null;
-                    } else {
-                        entry = new DeleteEntry(index.id(), index.seqNo(), index.primaryTerm(), plan.versionForIndexing - 1, index.uid(), disposableIndexWriter.getIndexWriter());
-                    }
+//                    if (plan.currentNotFoundOrDeleted && liveIndexWriterDeletesMap.getLastDeleteEntryUnderLock(index.uid().bytes()) == null) {
+////                        System.out.println("Skipping adding delete entry with currentNotFoundOrDeleted " + plan.currentNotFoundOrDeleted);
+//                        entry = null;
+//                    } else {
+//                        entry = new DeleteEntry(index.id(), index.seqNo(), index.primaryTerm(), plan.versionForIndexing - 1, index.uid(), disposableIndexWriter.getIndexWriter());
+//                    }
 
                     versionMap.maybePutIndexUnderLock(
                         index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
                     );
 
-                    if (entry != null) {
-                        if (liveIndexWriterDeletesMap.getIndexWritersMarkForRefresh().contains(disposableIndexWriter)) {
-//                            System.out.println("Adding delete to old map " + parentIndexWriter + " map " + liveIndexWriterDeletesMap);
-                            liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInOldMap(index.uid().bytes(), entry);
-                        } else {
-//                            System.out.println("Adding delete to new map " + parentIndexWriter + " map " + liveIndexWriterDeletesMap);
-                            liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInNewMap(index.uid().bytes(), entry);
-                        }
-                    }
+//                    if (entry != null) {
+//                        if (liveIndexWriterDeletesMap.getIndexWritersMarkForRefresh().contains(disposableIndexWriter)) {
+////                            System.out.println("Adding delete to old map " + parentIndexWriter + " map " + liveIndexWriterDeletesMap);
+//                            liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInOldMap(index.uid().bytes(), entry);
+//                        } else {
+////                            System.out.println("Adding delete to new map " + parentIndexWriter + " map " + liveIndexWriterDeletesMap);
+//                            liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInNewMap(index.uid().bytes(), entry);
+//                        }
+//                    } else {
+//                        if (liveIndexWriterDeletesMap.getIndexWritersMarkForRefresh().contains(disposableIndexWriter)) {
+//                            liveIndexWriterDeletesMap.removeLastDeleteEntryUnderLockInOldMap(index.uid().bytes());
+//                        } else {
+//                            liveIndexWriterDeletesMap.removeLastDeleteEntryUnderLockInCurrentMap(index.uid().bytes());
+//                        }
+//                    }
+
+                    liveIndexWriterDeletesMap.putCriteria(index.uid().bytes(), criteria);
                 }
 
 //                System.out.println("Marking seqNo as processed " + indexResult.getSeqNo());
@@ -1166,11 +1186,11 @@ public class InternalEngine extends Engine {
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
-                if (index.origin() == Operation.Origin.PRIMARY) {
-                    System.out.println("After indexing persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
-                } else {
-                    System.out.println("After indexing persisted " + index.origin() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
-                }
+//                if (index.origin() == Operation.Origin.PRIMARY) {
+//                    System.out.println("After indexing persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
+//                } else {
+//                    System.out.println("After indexing persisted " + index.origin() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
+//                }
 
 //                System.out.println("Live version map size " + liveIndexWriterDeletesMap.getCurrentSize() + " old size " + liveIndexWriterDeletesMap.getMarkForRefreshIndexWriterSize());
                 return indexResult;
@@ -1233,7 +1253,7 @@ public class InternalEngine extends Engine {
                     plan = IndexingStrategy.processAsStaleOp(index.version());
                 }
             } else {
-//                DeleteEntry deleteEntry = versionMap.getLastDeleteEntryUnderLock(index.uid().bytes());
+//                DeleteEntry deleteEntry = liveIndexWriterDeletesMap.getLastDeleteEntryUnderLock(index.uid().bytes());
 //                System.out.println("[Close writer: rep] Plan: For update, Process normally " + " opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND "
 //                    + (opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND) + " index.version: " + index.version()
 //                    + "maxSeqNoOfUpdatesOrDeletes: " + maxSeqNoOfUpdatesOrDeletes + " processed checkpoint " + localCheckpointTracker.getProcessedCheckpoint() + " and version: " + index.version() + " id: " + index.id());
@@ -1332,7 +1352,7 @@ public class InternalEngine extends Engine {
                         final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
                         plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
                     } else {
-
+//                        DeleteEntry deleteEntry = liveIndexWriterDeletesMap.getLastDeleteEntryUnderLock(index.uid().bytes());
                         // TODO: For term bump, request is a retry (canOptimizeAddDocument = true) so, we are always setting version 1 to even though it is an update.
                         plan = IndexingStrategy.processNormally(
                             currentNotFoundOrDeleted,
@@ -1364,15 +1384,16 @@ public class InternalEngine extends Engine {
 //            }
 
             // To prevent getting closed.
-            DeleteEntry deleteEntry = liveIndexWriterDeletesMap.getLastDeleteEntryUnderLock(index.uid().bytes());
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), currentWriter);
-            } else if (plan.useLuceneUpdateDocument || (deleteEntry != null && deleteEntry.getId().equals("-1"))) {
+            } else if (plan.useLuceneUpdateDocument) {
+//                System.out.println("Updating");
                 assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
                 updateDocs(index.uid(), index.docs(), currentWriter);
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
 //                assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
+//                System.out.println("Indexing");
                 addDocs(index.docs(), currentWriter);
             }
             return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
@@ -1401,16 +1422,12 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private synchronized DisposableIndexWriter getAssociatedIndexWriterForCriteria(String criteria) throws IOException {
-//        if (activeChildIndexWriterMap.get(criteria) != null && activeChildIndexWriterMap.get(criteria).isOpen()) {
-//            return activeChildIndexWriterMap.get(criteria);
-//        }
-
-        return liveIndexWriterDeletesMap.getAndLock(criteria, this::createChildWriterUtil);
+    private synchronized LiveIndexWriterDeletesMap.DisposableIndexWriter getAssociatedIndexWriterForCriteria(String criteria) throws IOException {
+        return liveIndexWriterDeletesMap.computeIndexWriterIfAbsentForCriteria(criteria, this::createChildWriterUtil);
     }
 
-    private DisposableIndexWriter createChildWriterUtil(String criteria, ReleasableLock readLock, ReleasableLock writeLock) throws IOException {
-        return new DisposableIndexWriter(new IndexWriter(store.newTempDirectory("temp_" + criteria + "_" + UUID.randomUUID()) , new IndexWriterConfig(engineConfig.getAnalyzer())
+    private LiveIndexWriterDeletesMap.DisposableIndexWriter createChildWriterUtil(String criteria, LiveIndexWriterDeletesMap.CriteriaBasedIndexWriterLookup lookup) throws IOException {
+        return new LiveIndexWriterDeletesMap.DisposableIndexWriter(new IndexWriter(store.newTempDirectory("temp_" + criteria + "_" + UUID.randomUUID()) , new IndexWriterConfig(engineConfig.getAnalyzer())
             .setCommitOnClose(true)
             .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(config().getIndexSettings().getIndexVersionCreated().luceneVersion.major)
@@ -1442,7 +1459,7 @@ public class InternalEngine extends Engine {
             .setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac())
             .setCodec(engineConfig.getCodec())
             .setUseCompoundFile(engineConfig.useCompoundFile())
-            .setLeafSorter(engineConfig.getLeafSorter())), readLock, writeLock);
+            .setLeafSorter(engineConfig.getLeafSorter())), lookup);
         // TODO: Handle index sort.
 //        Optional.ofNullable(engineConfig.getIndexSort()).ifPresent(sort -> iwc.setIndexSort(sort));
 
@@ -1602,7 +1619,6 @@ public class InternalEngine extends Engine {
     }
 
     private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
-        testCount.addAndGet(docs.size());
 //        assert childLevelReadLocks.get(indexWriter.toString()).isHeldByCurrentThread();
 //        System.out.println("Current doc count for IndexWriter " + parentIndexWriter + " should be " + testCount.get());
         if (docs.size() > 1) {
@@ -1743,7 +1759,6 @@ public class InternalEngine extends Engine {
             );
         }
 
-        testCount.addAndGet(docs.size());
 //        System.out.println("Current doc count should be " + testCount.get());
         if (docs.size() > 1) {
 //            indexWriter.addDocuments(docs);
@@ -1802,7 +1817,19 @@ public class InternalEngine extends Engine {
                 if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
                     // TODO: On the indexWriter on which it is deleted, doc may not be present. What to do in this case as result may be empty
                     // even though doc exists on other index writers.
-                    deleteResult = deleteInLucene(delete, plan);
+                    LiveIndexWriterDeletesMap.DisposableIndexWriter currentDisposableWriter = liveIndexWriterDeletesMap.getIndexWriterForIdFromCurrent(delete.uid().bytes());
+                    if (currentDisposableWriter != null) {
+                        try(ReleasableLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()) {
+                            deleteResult = deleteInLucene(delete, plan, currentDisposableWriter.getIndexWriter());
+                            currentDisposableWriter.getLookupMap().putLastDeleteEntry(delete.uid().bytes(),
+                                new DeleteEntry("-1", delete.seqNo(), delete.primaryTerm(), plan.versionOfDeletion, delete.uid(), null));
+                        }
+                    } else {
+                        deleteResult = deleteInLucene(delete, plan, parentIndexWriter);
+                        liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInNewMap(delete.uid().bytes(),
+                            new DeleteEntry("-1", delete.seqNo(), delete.primaryTerm(), plan.versionOfDeletion, delete.uid(), null));
+                    }
+
 //                    System.out.println("Delete document call " + deleteResult + " on index writer " + parentIndexWriter);
                     if (plan.deleteFromLucene) {
                         numDocDeletes.inc();
@@ -1818,8 +1845,8 @@ public class InternalEngine extends Engine {
                             )
                         );
 
-                        liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInNewMap(delete.uid().bytes(),
-                            new DeleteEntry("-1", delete.seqNo(), delete.primaryTerm(), plan.versionOfDeletion, delete.uid(), null));
+//                        liveIndexWriterDeletesMap.putLastDeleteEntryUnderLockInNewMap(delete.uid().bytes(),
+//                            new DeleteEntry("-1", delete.seqNo(), delete.primaryTerm(), plan.versionOfDeletion, delete.uid(), null));
                     }
                 } else {
                     deleteResult = new DeleteResult(
@@ -1842,6 +1869,7 @@ public class InternalEngine extends Engine {
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
+//            System.out.println("After delete persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + deleteResult.getSeqNo() + " with version " + deleteResult.getVersion() + " parent writer " + parentIndexWriter);
         } catch (RuntimeException | IOException e) {
             try {
                 maybeFailEngine("delete", e);
@@ -1985,7 +2013,7 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
-    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
+    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan, IndexWriter currentWriter) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
             final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
@@ -1998,9 +2026,9 @@ public class InternalEngine extends Engine {
                 + " ]";
             doc.add(softDeletesField);
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
-                parentIndexWriter.addDocument(doc);
+                currentWriter.addDocument(doc);
             } else {
-                parentIndexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
+                currentWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
             }
             return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (final Exception ex) {
@@ -2019,6 +2047,16 @@ public class InternalEngine extends Engine {
                 failEngine(reason, ex);
             }
             throw ex;
+        }
+    }
+
+    private void deleteDocumentFromChildWriter(IndexWriter writer, long seqNo, long primaryTerm, Term term) throws IOException {
+        if (writer != null) {
+            addDeleteEntryToWriter(seqNo, primaryTerm, term, writer);
+            writer.flush();
+            Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
+            writer.deleteDocuments(uid);
+            writer.flush();
         }
     }
 
@@ -2389,65 +2427,113 @@ public class InternalEngine extends Engine {
     }
 
     private void refreshDocumentsForParentDirectory() throws IOException {
-        final Collection<DisposableIndexWriter> markForRefreshIndexWriters = liveIndexWriterDeletesMap.getIndexWritersMarkForRefresh();
+        final Map<String, LiveIndexWriterDeletesMap.DisposableIndexWriter> markForRefreshIndexWritersMap = liveIndexWriterDeletesMap.getMarkForRefreshIndexWriterMap();
 //        System.out.println("Refreshing parent IndexWriter for map size " + parentIndexWriter + " with delete size " + liveIndexWriterDeletesMap.getLastDeleteEntrySize() + " and writer size " + liveIndexWriterDeletesMap.getMarkForRefreshIndexWriterSize() + " with current size " + liveIndexWriterDeletesMap.getCurrentSize());
-        for (DisposableIndexWriter writer: markForRefreshIndexWriters) {
-            // TODO: Should we ensure no active writes are going on this IndexWriter??
-            // Taking write lock here also ensures there is no further write will happen on this IndexWriter and operations like
-            // delete child level documents can happen without the fear of .
-            writer.getIndexWriter().flush();
-        }
+//        for (LiveIndexWriterDeletesMap.DisposableIndexWriter writer: markForRefreshIndexWritersMap.values()) {
+//            // TODO: Should we ensure no active writes are going on this IndexWriter??
+//            // Taking write lock here also ensures there is no further write will happen on this IndexWriter and operations like
+//            // delete child level documents can happen without the fear of .
+//            writer.getIndexWriter().flush();
+//        }
 
-        deletePreviousVersionsForUpdatedDocuments(markForRefreshIndexWriters);
+//        deletePreviousVersionsForUpdatedDocuments(markForRefreshIndexWritersMap.values().stream()
+//            .map(DisposableIndexWriter::getIndexWriter).collect(Collectors.toSet()));
+
+        deletePreviousVersionsForUpdatedDocumentsV3(markForRefreshIndexWritersMap);
 
         List<Directory> directoryToCombine = new ArrayList<>();
-        Set<DisposableIndexWriter> toBeRemoved = ConcurrentCollections.newConcurrentSet();
 
-        for (DisposableIndexWriter childDisposableWriter: markForRefreshIndexWriters) {
+        for (LiveIndexWriterDeletesMap.DisposableIndexWriter childDisposableWriter: markForRefreshIndexWritersMap.values()) {
             directoryToCombine.add(childDisposableWriter.getIndexWriter().getDirectory());
             long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
 //            System.out.println("locking writer during refresh with checkpoint " + localCheckpoint + " for closing " + childDisposableWriter + " parentWriter " + parentIndexWriter);
             IndexWriter.DocStats docStats = childDisposableWriter.getIndexWriter().getDocStats();
 //            System.out.println("Adding documents " + docStats.numDocs + " maxDoc " + docStats.maxDoc + " to parent writer " + parentIndexWriter);
             childDisposableWriter.getIndexWriter().close();
-            toBeRemoved.add(childDisposableWriter);
         }
 
         if (!directoryToCombine.isEmpty()) {
-//            System.out.println("SeqNo after addIndexes " + parentIndexWriter.addIndexes(directoryToCombine.toArray(new Directory[0])) + " for parent writer " + parentIndexWriter);
+            parentIndexWriter.addIndexes(directoryToCombine.toArray(new Directory[0]));
 //            System.out.println("Synced parent with child level IndexWriter");
 //            System.out.println("Refreshed parent IndexWriter count " + testCount.get() + " indexWriter id: " + parentIndexWriter);
             IOUtils.closeWhileHandlingException(directoryToCombine);
         }
 
-        for (DisposableIndexWriter disposableIndexWriter : toBeRemoved) {
-            markForRefreshIndexWriters.remove(disposableIndexWriter);
+//        System.out.println("Tried syncing parent with child level IndexWriter");
+    }
+
+    private void deletePreviousVersionsForUpdatedDocumentsV3(Map<String, LiveIndexWriterDeletesMap.DisposableIndexWriter> oldIndexWriterMap) throws IOException {
+        Map<BytesRef, DeleteEntry> deleteEntrySet = liveIndexWriterDeletesMap.getLastDeleteEntrySet();
+        for (DeleteEntry deleteEntry: deleteEntrySet.values()) {
+            // For both updates and deletes do a delete only in parent. For updates, latest writes will be on mark for flush writer,
+            // do delete entry in parent. For delete, do a delete in parent. This will take care of scenario incase deleteInLucene,
+            // delete went to mark for refresh.
+
+            addDeleteEntryToWriter(deleteEntry.getSeqNo(), deleteEntry.getPrimaryTerm(), deleteEntry.getTerm(), parentIndexWriter);
+            // TODO: Check if flush is needed here as this will make -2 visible, which may cause during recovery.
+            parentIndexWriter.flush();
+            Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
+            parentIndexWriter.deleteDocuments(uid);
+            parentIndexWriter.flush();
+        }
+    }
+
+    private void deletePreviousVersionsForUpdatedDocumentsV2(Map<String, LiveIndexWriterDeletesMap.DisposableIndexWriter> oldIndexWriterMap) throws IOException {
+        Map<BytesRef, DeleteEntry> deleteEntrySet = liveIndexWriterDeletesMap.getLastDeleteEntrySet();
+        for (DeleteEntry entry: deleteEntrySet.values()) {
+            final String criteria = liveIndexWriterDeletesMap.getCriteriaForDoc(entry.getTerm().bytes());
+            if (criteria != null) {
+                LiveIndexWriterDeletesMap.DisposableIndexWriter disposableIndexWriter = oldIndexWriterMap.get(criteria);
+                if (disposableIndexWriter != null) {
+                    final IndexWriter writer = disposableIndexWriter.getIndexWriter();
+                    if (entry.getId().equals("-1") || !writer.toString().equals(entry.getWriter().toString())) {
+//                        System.out.println("Applying deletes " + entry + " to child writer " + writer);
+                        // TODO: Should we pass non null operation for seq no generation?? If so, what??
+                        addDeleteEntryToWriter(entry.getSeqNo(), entry.getPrimaryTerm(), entry.getTerm(), writer);
+                    }
+                }
+            }
+
+            if (entry.getWriter() != null && !parentIndexWriter.toString().equals(entry.getWriter().toString())) {
+//                System.out.println("Applying delete entry " + entry + " to parent writer " + parentIndexWriter);
+                addDeleteEntryToWriter(entry.getSeqNo(), entry.getPrimaryTerm(), entry.getTerm(), parentIndexWriter);
+            }
         }
 
-//        System.out.println("Tried syncing parent with child level IndexWriter");
+        for (LiveIndexWriterDeletesMap.DisposableIndexWriter disposableIndexWriter: oldIndexWriterMap.values()) {
+            disposableIndexWriter.getIndexWriter().flush();
+            Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
+            disposableIndexWriter.getIndexWriter().deleteDocuments(uid);
+            disposableIndexWriter.getIndexWriter().flush();
+        }
+
+        // TODO: Check if flush is needed here as this will make -2 visible, which may cause during recovery.
+        parentIndexWriter.flush();
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
+        parentIndexWriter.deleteDocuments(uid);
+        parentIndexWriter.flush();
     }
 
     // This is based on assumption that all deletes for IndexWriter marked for flush are present in version map and vice versa.
     // To acheive this, no new update should come in between Delete doc rotation and marking an IndexWriter for refresh.
     // Otherwise couple of updates will be present in IndexWriter which is mark for Refresh but not present in old delted Docs.
-    private void deletePreviousVersionsForUpdatedDocuments(Collection<DisposableIndexWriter> oldIndexWriter) throws IOException {
+    private void deletePreviousVersionsForUpdatedDocuments(Collection<IndexWriter> oldIndexWriter) throws IOException {
         // Delete previous versions of this doc ids.
         Map<BytesRef, DeleteEntry> deleteEntrySet = liveIndexWriterDeletesMap.getLastDeleteEntrySet();
 //        System.out.println("Applying delete set on parent writer " + parentIndexWriter + " of size " + deleteEntrySet.size() + " markforrefreshsize " + oldIndexWriter.size());
         for (DeleteEntry entry: deleteEntrySet.values()) {
 //            System.out.println("Trying for delete entry " + entry);
-            for (DisposableIndexWriter writer: oldIndexWriter) {
+            for (IndexWriter writer: oldIndexWriter) {
                 // writer will be null for deletes. Deletes will be only applied on parent IndexWriter as this will
                 // delete all the version of this term during refresh (postings will query all versions during refresh for delete).
-                if (entry.getId().equals("-1") || !writer.getIndexWriter().toString().equals(entry.getWriter().toString())) {
+                if (entry.getId().equals("-1") || !writer.toString().equals(entry.getWriter().toString())) {
 //                    System.out.println("Applying deletes " + entry + " to child writer " + writer);
                     // TODO: Should we pass non null operation for seq no generation?? If so, what??
-                    addDeleteEntryToWriter(entry.getSeqNo(), entry.getPrimaryTerm(), entry.getId(), entry.getVersionOfDeletion(), entry.getTerm(), writer.getIndexWriter());
+                    addDeleteEntryToWriter(entry.getSeqNo(), entry.getPrimaryTerm(), entry.getTerm(), writer);
                 }
             }
 
-            for (DisposableIndexWriter disposableIndexWriter: oldIndexWriter) {
-                IndexWriter writer = disposableIndexWriter.getIndexWriter();
+            for (IndexWriter writer: oldIndexWriter) {
                 writer.flush();
                 Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
                 writer.deleteDocuments(uid);
@@ -2456,7 +2542,7 @@ public class InternalEngine extends Engine {
 
             if (entry.getId().equals("-1") || !parentIndexWriter.toString().equals(entry.getWriter().toString())) {
 //                System.out.println("Applying delete entry " + entry + " to parent writer " + parentIndexWriter);
-                addDeleteEntryToWriter(entry.getSeqNo(), entry.getPrimaryTerm(), entry.getId(), entry.getVersionOfDeletion(), entry.getTerm(), parentIndexWriter);
+                addDeleteEntryToWriter(entry.getSeqNo(), entry.getPrimaryTerm(), entry.getTerm(), parentIndexWriter);
                 // TODO: Check if flush is needed here as this will make -2 visible, which may cause during recovery.
                 parentIndexWriter.flush();
                 Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
@@ -2471,13 +2557,12 @@ public class InternalEngine extends Engine {
      *
      * @param seqNo
      * @param primaryTerm
-     * @param id
-     * @param versionOfDeletion
      * @param deleteTerm
      * @param currentWriter
      * @throws IOException
      */
-    private void addDeleteEntryToWriter(long seqNo, long primaryTerm, String id, long versionOfDeletion, Term deleteTerm, IndexWriter currentWriter) throws IOException {
+    private void addDeleteEntryToWriter(long seqNo, long primaryTerm, Term deleteTerm, IndexWriter currentWriter) throws IOException {
+//        System.out.println("Adding delete entry for seqNo " + seqNo);
         final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDummyNoopTombstoneDocForUpdates("DocUpdate");
         assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
         tombstone.updateSeqID(seqNo, primaryTerm);
@@ -2816,7 +2901,7 @@ public class InternalEngine extends Engine {
 //        System.out.println("Closing indexwriter " + parentIndexWriter + " due to " + reason + " stack trace " + Arrays.toString(Thread.currentThread().getStackTrace()));
         // TODO: Is this needed??
         // Refresh before closing engine so that child level IndexWriter are closed.
-//        refresh("close");
+        refresh("close");
 //        printLastCommitedCheckpoint(parentIndexWriter);
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
@@ -3148,9 +3233,11 @@ public class InternalEngine extends Engine {
 
             // Force flush is called only when shard is getting initialised for the first time. In that avoid refresh as it requires a lock on mutex,
             // which is already held inside updateShardState.
-            if (!force) {
-                refresh("commit");
-            }
+//            if (!force) {
+//
+//            }
+
+            refresh("commit");
 
             writer.commit();
         } catch (final Exception ex) {
@@ -3420,7 +3507,7 @@ public class InternalEngine extends Engine {
      */
     protected final void refreshIfNeeded(String source, long requestingSeqNo) {
         long lastRefreshCheckpoint = lastRefreshedCheckpoint();
-        System.out.println("refreshIfNeeded LastRefreshCheckpoint " + lastRefreshCheckpoint + "  requestingSeqNo " + requestingSeqNo + " for writer " + parentIndexWriter);
+//        System.out.println("refreshIfNeeded LastRefreshCheckpoint " + lastRefreshCheckpoint + "  requestingSeqNo " + requestingSeqNo + " for writer " + parentIndexWriter);
         if (lastRefreshCheckpoint < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {

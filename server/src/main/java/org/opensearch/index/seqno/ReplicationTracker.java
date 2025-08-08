@@ -65,6 +65,7 @@ import org.opensearch.indices.replication.common.SegmentReplicationLagTimer;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1157,7 +1158,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (newGlobalCheckpoint > previousGlobalCheckpoint) {
             globalCheckpoint = newGlobalCheckpoint;
             logger.trace("updated global checkpoint from [{}] to [{}] due to [{}]", previousGlobalCheckpoint, globalCheckpoint, reason);
-//            System.out.println("updated global checkpoint from " + previousGlobalCheckpoint + " to " + globalCheckpoint + " due to " + reason);
+            System.out.println("updated global checkpoint from " + previousGlobalCheckpoint + " to " + globalCheckpoint + " due to " + reason);
             onGlobalCheckpointUpdated.accept(globalCheckpoint);
         }
         assert invariant();
@@ -1622,7 +1623,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode;
         assert handoffInProgress == false;
         CheckpointState cps = checkpoints.get(allocationId);
-//        System.out.println("Marking Allocation id " + allocationId + " as sync");
+        System.out.println("Marking Allocation id " + allocationId + " as sync");
         if (cps == null) {
             // can happen if replica was removed from cluster but recovery process is unaware of it yet
             throw new IllegalStateException("no local checkpoint tracking information available for " + allocationId);
@@ -1646,7 +1647,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (cps.replicated && cps.localCheckpoint < getGlobalCheckpoint()) {
             pendingInSync.add(allocationId);
             try {
-//                System.out.println("Waiting for local checkpoint to advance");
+                System.out.println("Waiting for local checkpoint to advance");
                 while (true) {
                     if (pendingInSync.contains(allocationId)) {
                         waitForLocalCheckpointToAdvance();
@@ -1655,7 +1656,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     }
                 }
             } finally {
-//                System.out.println("Local checkpoint advanced");
+                System.out.println("Local checkpoint advanced");
                 pendingInSync.remove(allocationId);
             }
         } else {
@@ -1677,6 +1678,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + "]";
         if (localCheckpoint > cps.localCheckpoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, cps.localCheckpoint, localCheckpoint);
+            System.out.println("updated local checkpoint of " + allocationId + " from " + cps.localCheckpoint + " to "
+                + localCheckpoint + " with caller " + Arrays.toString(Thread.currentThread().getStackTrace()));
             cps.localCheckpoint = localCheckpoint;
             return true;
         } else {
@@ -1715,7 +1718,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             pending = false;
             cps.inSync = true;
             updateReplicationGroupAndNotify();
-//            System.out.println("marked " + allocationId + " as in-sync");
+            System.out.println("marked " + allocationId + " as in-sync");
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
@@ -1763,7 +1766,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + "] is lower than previous one ["
             + globalCheckpoint
             + "]";
-//        System.out.println("updated global checkpoint to " + globalCheckpoint + " computed global checkpoint " + computedGlobalCheckpoint);
+        System.out.println("updated global checkpoint to " + globalCheckpoint + " computed global checkpoint " + computedGlobalCheckpoint);
         if (globalCheckpoint != computedGlobalCheckpoint) {
             globalCheckpoint = computedGlobalCheckpoint;
             logger.trace("updated global checkpoint to [{}]", computedGlobalCheckpoint);

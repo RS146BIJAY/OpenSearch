@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
-    private static final int RELOCATION_COUNT = 2;
+    private static final int RELOCATION_COUNT = 15;
 
     public Settings indexSettings() {
         return Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
@@ -67,11 +67,11 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
         Thread indexingThread = new Thread(() -> {
-            while (finished.get() == false && numAutoGenDocs.get() < 2000) {
+            while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
                 IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                 DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
-                assertEquals("expected:<DELETED> but was:<NOT_FOUND> for seqNo " + deleteResponse.getSeqNo(), DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
                 client().prepareIndex("test").setSource("auto", true).get();
                 numAutoGenDocs.incrementAndGet();
             }
@@ -88,8 +88,6 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
             while (relocationTarget.equals(relocationSource)) {
                 relocationTarget = randomFrom(dataNodes);
             }
-
-            System.out.println("--> [iteration " + i + "] relocating from " + relocationSource.getName() + " to " + relocationTarget.getName());
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
             client().admin()
                 .cluster()
