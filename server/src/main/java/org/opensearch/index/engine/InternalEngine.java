@@ -1186,11 +1186,11 @@ public class InternalEngine extends Engine {
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
-                if (index.origin() == Operation.Origin.PRIMARY) {
-                    System.out.println("After indexing persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
-                } else {
-                    System.out.println("After indexing persisted " + index.origin() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
-                }
+//                if (index.origin() == Operation.Origin.PRIMARY) {
+//                    System.out.println("After indexing persisted primary with id " + index.id() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
+//                } else {
+//                    System.out.println("After indexing persisted " + index.origin() + " with id " + index.id() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + indexResult.getSeqNo() + " with version " + indexResult.getVersion() + " with index writer " + disposableIndexWriter + " parent writer " + parentIndexWriter);
+//                }
 
 //                System.out.println("Live version map size " + liveIndexWriterDeletesMap.getCurrentSize() + " old size " + liveIndexWriterDeletesMap.getMarkForRefreshIndexWriterSize());
                 return indexResult;
@@ -1871,7 +1871,7 @@ public class InternalEngine extends Engine {
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
-            System.out.println("After delete persisted primary local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + deleteResult.getSeqNo() + " with version " + deleteResult.getVersion() + " parent writer " + parentIndexWriter);
+//            System.out.println("After delete persisted primary with id " + delete.id() + " local checkpoint is " + localCheckpointTracker.getProcessedCheckpoint() + " with processed seqNo " + deleteResult.getSeqNo() + " with version " + deleteResult.getVersion() + " parent writer " + parentIndexWriter);
         } catch (RuntimeException | IOException e) {
             try {
                 maybeFailEngine("delete", e);
@@ -2473,10 +2473,10 @@ public class InternalEngine extends Engine {
 
             addDeleteEntryToWriter(deleteEntry.getSeqNo(), deleteEntry.getPrimaryTerm(), deleteEntry.getTerm(), parentIndexWriter);
             // TODO: Check if flush is needed here as this will make -2 visible, which may cause during recovery.
-            parentIndexWriter.flush();
+//            parentIndexWriter.flush();
             Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("-2"));
             parentIndexWriter.deleteDocuments(uid);
-            parentIndexWriter.flush();
+//            parentIndexWriter.flush();
         }
     }
 
@@ -2578,7 +2578,7 @@ public class InternalEngine extends Engine {
         doc.add(softDeletesField);
 //        System.out.println("Delete tombstone entry with seqNo added " + seqNo);
         currentWriter.softUpdateDocument(deleteTerm, doc, softDeletesField);
-        currentWriter.flush();
+//        currentWriter.flush();
     }
 
     private void refreshLastCommittedSegmentInfos() {

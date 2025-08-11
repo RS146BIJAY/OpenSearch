@@ -1680,7 +1680,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (localCheckpoint > cps.localCheckpoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, cps.localCheckpoint, localCheckpoint);
             System.out.println("updated local checkpoint of " + allocationId + " from " + cps.localCheckpoint + " to "
-                + localCheckpoint + " with caller " + Arrays.toString(Thread.currentThread().getStackTrace()));
+                + localCheckpoint);
             cps.localCheckpoint = localCheckpoint;
             return true;
         } else {
