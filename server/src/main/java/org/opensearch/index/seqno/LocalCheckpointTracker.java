@@ -164,7 +164,6 @@ public class LocalCheckpointTracker {
     }
 
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final Map<Long, CountedBitSet> bitSetMap) {
-//        System.out.println("Mark seq no as processed " + seqNo);
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);

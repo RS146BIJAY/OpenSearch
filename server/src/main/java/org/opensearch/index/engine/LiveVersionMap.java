@@ -32,8 +32,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -170,7 +168,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
-//            System.out.println("Rotating deletion map with old map size " + current.lastDeleteEntrySetSize());
             return new Maps(
                 new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
                 current,
@@ -202,12 +199,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
         void remove(BytesRef uid, DeleteVersionValue deleted) {
             VersionValue previousValue = current.remove(uid);
-//            current.removeDeleteEntry(uid);
-//            if (deleteEntry != null) {
-////                System.out.println("Adding delete entry " + deleteEntry);
-//                current.putLastDeleteEntry(uid, deleteEntry);
-//            }
-
             current.updateMinDeletedTimestamp(deleted);
             if (previousValue != null) {
                 long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
@@ -217,7 +208,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
                 // we also need to remove it from the old map here to make sure we don't read this stale value while
                 // we are in the middle of a refresh. Most of the time the old map is an empty map so we can skip it there.
                 old.remove(uid);
-//                old.removeDeleteEntry(uid);
             }
         }
 
@@ -347,7 +337,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
     void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
-//        System.out.println("Adding entry in live version map with delete entry " + entry);
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
         // TODO: Fix this.
@@ -370,11 +359,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         maps.put(uid, version);
         removeTombstoneUnderLock(uid);
-
-//        // Can be null for the first version.
-//        if (entry != null) {
-//            maps.putLastDeleteEntry(uid, entry);
-//        }
     }
 
     private boolean putAssertionMap(BytesRef uid, IndexVersionValue version) {
@@ -502,10 +486,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      */
     Map<BytesRef, VersionValue> getAllCurrent() {
         return maps.current.map;
-    }
-
-    Map<BytesRef, VersionValue> getAllOld() {
-        return maps.old.map;
     }
 
     /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones

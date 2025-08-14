@@ -53,7 +53,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -140,7 +139,6 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulk() {
-        HashMap<String, String> mp = new HashMap<>();
         // Index by bulk with RefreshPolicy.WAIT_UNTIL
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareIndex("test").setId("1").setSource("foo", "bar"));
@@ -151,7 +149,6 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz"));
         assertBulkSuccess(bulk.get());
-//        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
         // Delete by bulk with RefreshPolicy.WAIT_UNTIL

@@ -523,7 +523,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final void incRef() {
         refCounter.incRef();
-//        System.out.println("IncRef: " + refCounter.refCount());
     }
 
     /**
@@ -541,9 +540,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     @Override
     public final boolean tryIncRef() {
-        boolean res = refCounter.tryIncRef();
-//        System.out.println("IncRef: " + refCounter.refCount());
-        return res;
+        return refCounter.tryIncRef();
     }
 
     /**
@@ -554,9 +551,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     @Override
     public final boolean decRef() {
-        boolean res = refCounter.decRef();
-//        System.out.println("DecRef: " + refCounter.refCount());
-        return res;
+        return refCounter.decRef();
     }
 
     @Override
@@ -565,7 +560,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // only do this once!
             decRef();
             logger.debug("store reference count on close: {}", refCounter.refCount());
-//            System.out.println("store reference count on close: " + refCounter.refCount());
         }
     }
 
@@ -1969,7 +1963,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return new IndexWriter(dir, iwc);
     }
 
-    public static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
+    private static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(luceneVersion.major);
         return new IndexWriter(dir, iwc);

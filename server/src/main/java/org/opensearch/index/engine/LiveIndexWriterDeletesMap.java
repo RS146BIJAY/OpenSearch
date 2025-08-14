@@ -82,10 +82,6 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
             this.version = version;
         }
 
-//        void putCriteriaBasedIndexWriterMap(String key, DisposableIndexWriter writer) {
-//            criteriaBasedIndexWriterMap.put(key, writer);
-//        }
-
         DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(String criteria,
                                                                     CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> indexWriterSupplier) {
             mapReadLock.acquire();
@@ -110,10 +106,6 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
             return lastDeleteEntrySet.size();
         }
 
-        int sizeOfCriteria() {
-            return criteria.size();
-        }
-
         DeleteEntry getLastDeleteEntry(BytesRef key) {
             return lastDeleteEntrySet.get(key);
         }
@@ -136,6 +128,10 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
 
         public ReleasableLock getMapReadLock() {
             return mapReadLock;
+        }
+
+        boolean hasNewIndexingOrUpdates() {
+            return !criteriaBasedIndexWriterMap.isEmpty() || !lastDeleteEntrySet.isEmpty();
         }
     }
 
@@ -166,9 +162,6 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
-//            System.out.println("Rotating deletion map with old map " + this + " size " + current.sizeOfLastDeleteEntrySet() + " writer of size " + current.sizeOfCriteriaBasedIndexWriterMap());
-//            System.out.println("Inside buildTransitionMap for " + this + " for current " + current + " lock: " + current.mapReadLock + " " + current.mapWriteLock + " and old " + old + " lock: " + old.mapReadLock + " " + old.mapWriteLock);
-
             // This ensures writer map is not rotated during the time when we are obtaining an IndexWriter from map. As
             // this may cause updates to go out of sync with current IndexWriter.
             return new Maps(
@@ -183,16 +176,11 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
         Maps invalidateOldMap() {
-//            System.out.println("Inside invalidateOldMap for " + this + " for current " + current + " lock: " + current.mapReadLock + " " + current.mapWriteLock + " and old " + old + " lock: " + old.mapReadLock + " " + old.mapWriteLock);
             return new Maps(current, CriteriaBasedIndexWriterLookup.EMPTY);
         }
 
         void putLastDeleteEntryInCurrentMap(BytesRef uid, DeleteEntry deleteEntry) {
             current.putLastDeleteEntry(uid, deleteEntry);
-        }
-
-        void putLastDeleteEntryInOldMap(BytesRef bytesRef, DeleteEntry deleteEntry) {
-            old.putLastDeleteEntry(bytesRef, deleteEntry);
         }
 
         void removeLastDeleteEntryInCurrentMap(BytesRef uid) {
@@ -209,26 +197,15 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
 
         String getCriteriaForDoc(BytesRef key) {
             return current.getCriteriaForDoc(key);
-//            if (criteria == null) {
-//                criteria = old.getCriteriaForDoc(key);
-//            }
-
-//            return criteria;
         }
 
         DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(String criteria,
                                                                     CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> indexWriterSupplier) {
-//            System.out.println("Before map, Live version map size " + current.sizeOfCriteriaBasedIndexWriterMap() + " old size " + old.sizeOfCriteriaBasedIndexWriterMap() + " maps " + this);
             return current.computeIndexWriterIfAbsentForCriteria(criteria, indexWriterSupplier);
-//            System.out.println("In map, Live version map size " + current.sizeOfCriteriaBasedIndexWriterMap() + " old size " + old.sizeOfCriteriaBasedIndexWriterMap() + " maps " + this);
         }
 
-        int sizeOfCurrentCriteriaBasedIndexWriterMap() {
-            return current.sizeOfCriteriaBasedIndexWriterMap();
-        }
-
-        int sizeOfOldCriteriaBasedIndexWriterMap() {
-            return old.sizeOfCriteriaBasedIndexWriterMap();
+        boolean hasNewIndexingOrUpdates() {
+            return current.hasNewIndexingOrUpdates() || old.hasNewIndexingOrUpdates();
         }
     }
 
@@ -236,51 +213,18 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
 
     @Override
     public void beforeRefresh() throws IOException {
-//        System.out.println("Before build transition maps " + maps + " with current " + maps.current.sizeOfCriteriaBasedIndexWriterMap() + " and old " + maps.old.sizeOfCriteriaBasedIndexWriterMap());
-
         maps = maps.buildTransitionMap();
         try(Releasable ignore = maps.old.mapWriteLock.acquire()) {
-//            System.out.println("build transition maps " + maps + " with current " + maps.current.sizeOfCriteriaBasedIndexWriterMap() + " and old " + maps.old.sizeOfCriteriaBasedIndexWriterMap());
         }
     }
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-//        System.out.println("After refresh taking lock on " + maps + " with lock " + maps.old.mapWriteLock);
         maps = maps.invalidateOldMap();
-//        System.out.println("Invalidated maps " + maps + " with current " + maps.current.sizeOfCriteriaBasedIndexWriterMap() + " and old " + maps.old.sizeOfCriteriaBasedIndexWriterMap());
-    }
-
-    public ReleasableLock getCurrentCriteriaBasedIndexWriterLookupReadLock() {
-        return maps.current.mapReadLock;
-    }
-
-    public ReleasableLock getOldCriteriaBasedIndexWriterLookupReadLock() {
-        return maps.old.mapReadLock;
-    }
-
-    public ReleasableLock getOldCriteriaBasedIndexWriterLookupWriteLock() {
-        return maps.old.mapReadLock;
-    }
-
-    public CriteriaBasedIndexWriterLookup getOldCriteriaBasedIndexWriterLookup() {
-        return maps.old;
     }
 
     Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
-    }
-
-    DeleteEntry getLastDeleteEntryUnderLock(final BytesRef uid) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
-        Maps currentMaps = maps;
-        DeleteEntry deleteEntry = currentMaps.current.getLastDeleteEntry(uid);
-        if (deleteEntry != null) {
-            return deleteEntry;
-        }
-
-        deleteEntry = currentMaps.old.getLastDeleteEntry(uid);
-        return deleteEntry;
     }
 
     public Map<BytesRef, DeleteEntry> getLastDeleteEntrySet() {
@@ -288,27 +232,7 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
     }
 
     void putLastDeleteEntryUnderLockInNewMap(BytesRef uid, DeleteEntry entry) {
-//        assert assertKeyedLockHeldByCurrentThread(uid);
-//        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         maps.putLastDeleteEntryInCurrentMap(uid, entry);
-    }
-
-//    void putLastDeleteEntryUnderLockInOldMap(BytesRef uid, DeleteEntry entry) {
-//        assert assertKeyedLockHeldByCurrentThread(uid);
-//        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-//        maps.putLastDeleteEntryInOldMap(uid, entry);
-//    }
-
-    void removeLastDeleteEntryUnderLockInOldMap(BytesRef uid) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
-        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-        maps.removeLastDeleteEntryInOldMap(uid);
-    }
-
-    void removeLastDeleteEntryUnderLockInCurrentMap(BytesRef uid) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
-        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-        maps.removeLastDeleteEntryInCurrentMap(uid);
     }
 
     void putCriteria(BytesRef uid, String criteria) {
@@ -338,15 +262,8 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
         return null;
     }
 
-    DisposableIndexWriter getIndexWriterForIdFromOld(BytesRef uid) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
-        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-        String criteria = getCriteriaForDoc(uid);
-        if (criteria != null) {
-            return maps.old.getIndexWriterForCriteria(criteria);
-        }
-
-        return null;
+    boolean hasNewIndexingOrUpdates() {
+        return maps.hasNewIndexingOrUpdates();
     }
 
     String getCriteriaForDoc(BytesRef uid) {
@@ -360,18 +277,12 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
 
     DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(final String criteria,
                                                       CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> indexWriterSupplier) throws IOException {
-//        System.out.println("Get and lock taking lock on " + maps + " with lock " + maps.current.mapReadLock);
         return computeIndexWriterIfAbsentForCriteria(criteria, maps, indexWriterSupplier);
     }
 
     DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(final String criteria, Maps currentMaps,
                                                                 CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> indexWriterSupplier) {
-//        System.out.println("Before live version map, Live version map size " + currentMaps.sizeOfCurrentCriteriaBasedIndexWriterMap() + " old size " + currentMaps.sizeOfOldCriteriaBasedIndexWriterMap() + " maps " + currentMaps);
         return currentMaps.computeIndexWriterIfAbsentForCriteria(criteria, indexWriterSupplier);
-    }
-
-    public Collection<DisposableIndexWriter> getIndexWritersMarkForRefresh() {
-         return new HashSet<>(maps.old.criteriaBasedIndexWriterMap.values());
     }
 
     public Map<String, DisposableIndexWriter> getMarkForRefreshIndexWriterMap() {
@@ -390,14 +301,15 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
     }
 
     public long getPendingNumDocs() {
-        long flushingBytes = 0;
+        long pendingNumDocs = 0;
         Collection<IndexWriter> currentWriterSet = maps.current.criteriaBasedIndexWriterMap.values()
             .stream().map(DisposableIndexWriter::getIndexWriter).collect(Collectors.toSet());;
         for (IndexWriter currentWriter : currentWriterSet) {
-            flushingBytes += currentWriter.getPendingNumDocs();
+            pendingNumDocs += currentWriter.getPendingNumDocs();
         }
 
-        return flushingBytes;
+        // TODO: Should we add docs for old writer as well?
+        return pendingNumDocs;
     }
 
     public boolean hasUncommittedChanges() {
@@ -409,6 +321,7 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
             }
         }
 
+        // TODO: Should we do this for old writer as well?
         return false;
     }
 
@@ -432,16 +345,30 @@ public class LiveIndexWriterDeletesMap implements ReferenceManager.RefreshListen
         return null;
     }
 
-    public int getLastDeleteEntrySize() {
-        return maps.old.lastDeleteEntrySet.size();
-    }
+    public final long ramBytesUsed() {
+        long ramBytesUsed = 0;
+        Collection<IndexWriter> currentWriterSet = maps.current.criteriaBasedIndexWriterMap.values().stream()
+                .map(DisposableIndexWriter::getIndexWriter).collect(Collectors.toSet());
 
-    public int getMarkForRefreshIndexWriterSize() {
-        return maps.sizeOfOldCriteriaBasedIndexWriterMap();
-    }
+        try(ReleasableLock ignore = maps.current.mapWriteLock.acquire()) {
+            for (IndexWriter indexWriter : currentWriterSet) {
+                if (indexWriter.isOpen() == true) {
+                    ramBytesUsed += indexWriter.ramBytesUsed();
+                }
+            }
+        }
 
-    public int getCurrentSize() {
-        return maps.sizeOfCurrentCriteriaBasedIndexWriterMap();
+        Collection<IndexWriter> oldWriterSet = maps.old.criteriaBasedIndexWriterMap.values().stream()
+                .map(DisposableIndexWriter::getIndexWriter).collect(Collectors.toSet());
+        try(ReleasableLock ignore = maps.old.mapWriteLock.acquire()) {
+            for (IndexWriter indexWriter : oldWriterSet) {
+                if (indexWriter.isOpen() == true) {
+                    ramBytesUsed += indexWriter.ramBytesUsed();
+                }
+            }
+        }
+
+        return ramBytesUsed;
     }
 
     // TODO: Fix rollback scenarioes (Remove docs from child and do a rollback from Parent IndexWriter)

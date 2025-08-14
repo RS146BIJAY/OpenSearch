@@ -160,6 +160,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         );
     }
 
+    // TODO: Flaky
     public void testElectOnlyBetweenClusterManagerNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start data node / non cluster-manager node");

@@ -176,8 +176,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     private static final String REPO_NAME = "test-repo-1";
     private static final String SNAP_NAME = "test-snap-1";
 
-    private static final int MIN_DOC_COUNT = 5;
-    private static final int MAX_DOC_COUNT = 10;
+    private static final int MIN_DOC_COUNT = 500;
+    private static final int MAX_DOC_COUNT = 1000;
     private static final int SHARD_COUNT = 1;
     private static final int REPLICA_COUNT = 0;
 
@@ -1998,7 +1998,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         );
         ensureGreen(indexName);
         final long maxSeqNoAfterRecovery = primary.seqNoStats().getMaxSeqNo();
-        System.out.println("MaxSeqNoBeforeRecovery " + maxSeqNoBeforeRecovery + " MaxSeqNoAfterRecovery " + maxSeqNoAfterRecovery);
 
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = client().admin()
@@ -2122,7 +2121,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
-        System.out.println("Indexing doc completed.");
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
         final String nodeWithoutData = internalCluster().startDataOnlyNode();
@@ -2158,9 +2156,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         DiscoveryNode nodeWithOldPrimary = clusterState.nodes()
             .get(clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId());
-        System.out.println("Primary node " + nodeWithOldPrimary);
-        System.out.println("Replica node " + clusterState.nodes().get(clusterState.routingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId()));
-
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             nodeWithOldPrimary.getName()

@@ -956,9 +956,9 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine = new InternalEngine(initialEngine.config()) {
 
                 @Override
-                protected void commitIndexWriter(boolean force, IndexWriter writer, String translogUUID) throws IOException {
+                protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
                     committed.set(true);
-                    super.commitIndexWriter(force, writer, translogUUID);
+                    super.commitIndexWriter(writer, translogUUID);
                 }
             };
             assertThat(recoveringEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(docs));
@@ -1130,35 +1130,6 @@ public class InternalEngineTests extends EngineTestCase {
                 return IndexingStrategy.processNormally(false, 0, 0);
             }
         };
-    }
-
-    public void testDuplicateTerm() throws Exception {
-        engine.refresh("warm_up");
-        Engine.Searcher searchResult = engine.acquireSearcher("test");
-        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
-        searchResult.close();
-
-        final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
-
-        // create a document
-        Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
-        Engine.Index indexDoc = indexForDoc(doc, 1);
-        engine.index(indexDoc);
-
-        indexDoc = indexForDoc(doc, 2);
-        engine.index(indexDoc);
-
-        // refresh and it should be there
-        engine.refresh("test");
-
-        searchResult = engine.acquireSearcher("test");
-        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
-    }
-
-    protected Engine.Index indexForDoc(ParsedDocument doc, long primaryTerm) {
-        return new Engine.Index(newUid(doc), primaryTerm, doc);
     }
 
     public void testSimpleOperations() throws Exception {
@@ -3920,8 +3891,8 @@ public class InternalEngineTests extends EngineTestCase {
                 ) {
 
                     @Override
-                    protected void commitIndexWriter(boolean force, IndexWriter writer, String translogUUID) throws IOException {
-                        super.commitIndexWriter(force, writer, translogUUID);
+                    protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
+                        super.commitIndexWriter(writer, translogUUID);
                         if (throwErrorOnCommit.get()) {
                             throw new RuntimeException("power's out");
                         }
@@ -6255,14 +6226,14 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
             @Override
-            protected void commitIndexWriter(boolean force, IndexWriter writer, String translogUUID) throws IOException {
+            protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
                 lastSyncedGlobalCheckpointBeforeCommit.set(Translog.readGlobalCheckpoint(translogPath, translogUUID));
                 // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                 // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
                 if (rarely()) {
                     globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), getPersistedLocalCheckpoint()));
                 }
-                super.commitIndexWriter(force, writer, translogUUID);
+                super.commitIndexWriter(writer, translogUUID);
             }
         }) {
             engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);

@@ -1544,9 +1544,6 @@ public final class InternalTestCluster extends TestCluster {
                             continue;
                         }
 
-//                        System.out.println("Primary: " + ((InternalEngine)primaryShard.getEngineOrNull()).getParentIndexWriter());
-//                        System.out.println(" Replica: " + ((InternalEngine)replicaShard.getEngineOrNull()).getParentIndexWriter());
-
                         assertThat(
                             "out of sync shards: primary=["
                                 + primaryShardRouting
@@ -2678,7 +2675,7 @@ public final class InternalTestCluster extends TestCluster {
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {
                 try {
-                    env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(10)).close();
+                    env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
                     fail("Shard " + id + " is still locked after 5 sec waiting");
                 }

@@ -38,9 +38,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.UnavailableShardsException;
-import org.opensearch.action.bulk.BulkItemRequest;
-import org.opensearch.action.bulk.BulkShardRequest;
-import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
@@ -544,19 +541,6 @@ public abstract class TransportReplicationAction<
                 );
             }
 
-//            if (primaryRequest.getRequest() instanceof BulkShardRequest) {
-//                for (BulkItemRequest itemRequest: ((BulkShardRequest) primaryRequest.getRequest()).items()) {
-//                    if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
-//                        System.out.println("Primary Is retried for request id " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
-//                    } else {
-//                        System.out.println("Primary BulkItemRequest Request tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
-//                    }
-//                }
-//            } else {
-//                System.out.println("Non bulk shard request retried " + primaryRequest.getRequest());
-//            }
-
-
             acquirePrimaryOperationPermit(
                 indexShard,
                 primaryRequest.getRequest(),
@@ -935,19 +919,6 @@ public abstract class TransportReplicationAction<
                     actualAllocationId
                 );
             }
-
-//            if (replicaRequest.getRequest() instanceof BulkShardRequest) {
-//                for (BulkItemRequest itemRequest: ((BulkShardRequest) replicaRequest.getRequest()).items()) {
-//                    if (itemRequest.request() instanceof IndexRequest && ((IndexRequest) itemRequest.request()).isRetry()) {
-//                        System.out.println("Replica Is retried for request id " + itemRequest.request().id() + " with version " + itemRequest.request().version() + " and term " + itemRequest.request().ifPrimaryTerm());
-//                    } else {
-//                        System.out.println("Replica BulkItemRequest Request tried " + itemRequest.request().id() + " with request " + itemRequest.request() + " and term " + itemRequest.request().ifPrimaryTerm());
-//                    }
-//                }
-//            } else {
-//                System.out.println("Non bulk shard request retried " + replicaRequest.getRequest());
-//            }
-
             acquireReplicaOperationPermit(
                 replica,
                 replicaRequest.getRequest(),
@@ -1195,8 +1166,6 @@ public abstract class TransportReplicationAction<
                                 ),
                                 exp
                             );
-
-//                            System.out.println("received an error from node " + node.getId() + " for request [" + requestToPerform + "]" + " with isPrimary " + isPrimaryAction);
                             retry(exp);
                         } else {
                             finishAsFailed(exp);
@@ -1218,7 +1187,6 @@ public abstract class TransportReplicationAction<
             }
             setPhase(task, "waiting_for_retry");
             request.onRetry();
-            System.out.println("Retrying " + request + " with error " + failure);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

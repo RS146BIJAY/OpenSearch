@@ -165,14 +165,12 @@ public class NRTReplicationEngine extends Engine {
             ensureOpen();
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
-//            System.out.println("Updating reader manager segment infos");
             readerManager.updateSegments(infos);
             // Ensure that we commit and clear the local translog if a new commit has been made on the primary.
             // We do not compare against the last local commit gen here because it is possible to receive
             // a lower gen from a newly elected primary shard that is behind this shard's last commit gen.
             // In that case we still commit into the next local generation.
             if (incomingGeneration != this.lastReceivedPrimaryGen) {
-//                System.out.println("Flushing segmentInfos");
                 flush(false, true);
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
@@ -180,8 +178,6 @@ public class NRTReplicationEngine extends Engine {
             this.lastReceivedPrimaryGen = incomingGeneration;
             localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
         }
-
-//        System.out.println("Updating segmentInfos completed.");
     }
 
     /**
@@ -274,7 +270,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
 

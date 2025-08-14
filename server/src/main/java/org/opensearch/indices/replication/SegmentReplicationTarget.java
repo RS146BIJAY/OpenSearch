@@ -177,12 +177,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         cancellableThreads.checkForCancel();
-//        System.out.println("Trying to get checkpoint info");
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
         checkpointInfoListener.whenComplete(checkpointInfo -> {
             checkpointUpdater.accept(checkpointInfo.getCheckpoint(), this.indexShard);
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
-//            System.out.println("Got the file list" + Arrays.toString(filesToFetch.toArray()));
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
             source.getSegmentFiles(
@@ -196,7 +194,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
-//            System.out.println("Finalising replication");
             finalizeReplication(checkpointInfoListener.result());
             listener.onResponse(null);
         }, listener::onFailure);
@@ -309,7 +306,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen()
             );
 
-//            System.out.println("Shard finalisation");
             indexShard.finalizeReplication(infos);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.

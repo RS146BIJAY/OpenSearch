@@ -194,7 +194,7 @@ public class IngestionEngine extends InternalEngine {
      * source.
      */
     @Override
-    protected void commitIndexWriter(final boolean force, final IndexWriter writer, final String translogUUID) throws IOException {
+    protected void commitIndexWriter(final IndexWriter writer, final String translogUUID) throws IOException {
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             writer.setLiveCommitData(() -> {

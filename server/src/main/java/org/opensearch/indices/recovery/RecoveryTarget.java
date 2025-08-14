@@ -244,7 +244,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener.completeWith(listener, () -> {
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
             // Persist the global checkpoint.
-            System.out.println("Persist global checkpoint [" + globalCheckpoint + "]");
             indexShard.sync();
             indexShard.persistRetentionLeases();
             if (trimAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
@@ -259,7 +258,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 indexShard.trimOperationOfPreviousPrimaryTerms(trimAboveSeqNo);
             }
             if (hasUncommittedOperations()) {
-                System.out.println("Calling flush in before finalize recovery.");
                 indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             }
             indexShard.finalizeRecovery();

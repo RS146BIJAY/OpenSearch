@@ -32,8 +32,6 @@
 package org.opensearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.search.ReferenceManager;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;

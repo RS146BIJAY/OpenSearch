@@ -69,7 +69,6 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
 
         final long startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
         logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
-        System.out.println("performing file-based recovery followed by history replay starting at " + startingSeqNo);
 
         try {
             final Releasable releaseStore = acquireStore(shard.store());
@@ -84,7 +83,6 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
         sendFileStep.whenComplete(r -> {
-            System.out.println("sendFileStep completed");
             logger.debug("sendFileStep completed");
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
@@ -92,7 +90,6 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         }, onFailure);
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
-            System.out.println("prepareEngineStep completed");
             logger.debug("prepareEngineStep completed");
             assert Transports.assertNotTransportThread(this + "[phase2]");
             RunUnderPrimaryPermit.run(

@@ -87,7 +87,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
         if (isSequenceNumberBasedRecovery) {
             logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
-            System.out.println("performing sequence numbers based recovery. starting at " + request.startingSeqNo());
             startingSeqNo = request.startingSeqNo();
             if (retentionLeaseRef.get() == null) {
                 createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, ignored -> SendFileResult.EMPTY));
@@ -115,7 +114,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
             // down.
             startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
             logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
-            System.out.println("performing file-based recovery followed by history replay starting at " + startingSeqNo);
 
             try {
                 final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);
@@ -159,7 +157,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
         sendFileStep.whenComplete(r -> {
             logger.debug("sendFileStep completed");
-            System.out.println("sendFileStep completed");
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
             prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
@@ -167,7 +164,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
             logger.debug("prepareEngineStep completed");
-            System.out.println("prepareEngineStep completed");
             assert Transports.assertNotTransportThread(this + "[phase2]");
             /*
              * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
@@ -188,7 +184,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 logger.trace("snapshot translog for recovery; current size is [{}]", countNumberOfHistoryOperations(startingSeqNo));
             }
 
-            System.out.println("snapshot translog for recovery; current size is " + countNumberOfHistoryOperations(startingSeqNo));
             final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
                 PEER_RECOVERY_NAME,
                 startingSeqNo,

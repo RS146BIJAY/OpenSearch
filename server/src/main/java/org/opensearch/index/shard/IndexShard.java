@@ -753,8 +753,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (resyncStarted == false) {
                         throw new IllegalStateException("cannot start resync while it's already in progress");
                     }
-
-                    System.out.println("Updating primary term inside updateShardState");
                     bumpPrimaryTerm(newPrimaryTerm, () -> {
                         shardStateUpdated.await();
                         assert pendingPrimaryTerm == newPrimaryTerm : "shard term changed on primary. expected ["
@@ -815,7 +813,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              */
                             engine.translogManager().rollTranslogGeneration();
                             engine.fillSeqNoGaps(newPrimaryTerm);
-//                            System.out.println("Updating local checkpoint for shard [" + shardId + "]");
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                             primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                 @Override
@@ -1122,7 +1119,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 0
             );
-
             return getEngine().index(index);
         }
         assert opPrimaryTerm <= getOperationPrimaryTerm() : "op term [ "
@@ -1392,7 +1388,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper == null) {
-//            System.out.println("Mapper is null " + get.id());
             return GetResult.NOT_EXISTS;
         }
         return getEngine().get(get, this::acquireSearcher);
@@ -1581,7 +1576,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void rollTranslogGeneration() throws IOException {
         final Engine engine = getEngine();
-        System.out.println("Roll translog generation");
         engine.translogManager().rollTranslogGeneration();
     }
 
@@ -1710,7 +1704,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void finalizeReplication(SegmentInfos infos) throws IOException {
         if (getReplicationEngine().isPresent()) {
-//            System.out.println("Updating segments " + Arrays.toString(infos.asList().toArray()));
             getReplicationEngine().get().updateSegments(infos);
         }
     }
@@ -2299,7 +2292,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 getEngine().translogManager()
                     .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), globalCheckpoint);
                 logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
-                System.out.println("shard locally recovered up to " + getEngine().getSeqNoStats(globalCheckpoint));
             } finally {
                 synchronized (engineMutex) {
                     IOUtils.close(currentEngineReference.getAndSet(null));
@@ -2375,7 +2367,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
-        System.out.println("Trim operations from translog.");
         getEngine().translogManager().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
     }
 
@@ -2411,7 +2402,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         final Engine.Result result;
-//        System.out.println("Translog operation applied " + operation);
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
@@ -2473,7 +2463,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while ((operation = snapshot.next()) != null) {
             try {
                 logger.trace("[translog] recover op {}", operation);
-                System.out.println("[translog] recover op " + operation);
                 Engine.Result result = applyTranslogOperation(engine, operation, origin);
                 switch (result.getResultType()) {
                     case FAILURE:
@@ -2744,7 +2733,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         Engine engine = getEngine();
-        System.out.println("Calling refresh for recovery finalization");
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);
     }
@@ -3214,7 +3202,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         assert assertPrimaryMode();
         verifyNotClosed();
-//        System.out.println("Updating local checkpoint for shard [" + shardId + "] to " + checkpoint);
         replicationTracker.updateLocalCheckpoint(allocationId, checkpoint);
     }
 
@@ -3772,7 +3759,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
      * closed.
      */
-    public Engine getEngineOrNull() {
+    protected Engine getEngineOrNull() {
         return this.currentEngineReference.get();
     }
 
@@ -4428,7 +4415,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
 
-//                    System.out.println("Updating primary term inside innerAcquireReplicaOperationPermit.");
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                         final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
@@ -4691,10 +4677,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean scheduledRefresh() {
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-        boolean isRefreshNeeded = getEngine().refreshNeeded();
-//        System.out.println("Trying to trigger a refresh with parameter " + isReadAllowed() + " "
-//            + listenerNeedsRefresh + " " + isRefreshNeeded + " " + isSearchIdleSupported() + " " + isSearchIdle());
-        if (isReadAllowed() && (listenerNeedsRefresh || isRefreshNeeded)) {
+        if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
                 && isSearchIdleSupported()
                 && isSearchIdle()
@@ -4708,7 +4691,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 setRefreshPending(engine);
                 return false;
             } else {
-//                System.out.println("Triggering a refresh");
                 if (logger.isTraceEnabled()) {
                     logger.trace("refresh with source [schedule]");
                 }
@@ -4735,6 +4717,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
      */
+    // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
         // If the index is remote store backed, then search idle is not supported. This is to ensure that async refresh
         // task continues to upload to remote store periodically.
@@ -4948,7 +4931,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {
-        System.out.println("Reset engine to global checkpoint.");
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED : "resetting engine without blocking operations; active operations are ["
             + getActiveOperations()
@@ -4966,7 +4948,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed();
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
             // acquireXXXCommit and close works.
-            System.out.println("Reseting engine to global checkpoint");
             final Engine readOnlyEngine = new ReadOnlyEngine(
                 newEngineConfig(replicationTracker),
                 seqNoStats,
@@ -5025,8 +5006,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
-
-            System.out.println("Create new read write engine");
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }

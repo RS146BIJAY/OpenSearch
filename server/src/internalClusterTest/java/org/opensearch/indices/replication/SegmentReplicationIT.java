@@ -982,7 +982,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             )
         ) {
             indexer.start(initialDocCount);
-             waitForDocs(initialDocCount, indexer);
+            waitForDocs(initialDocCount, indexer);
             refresh(INDEX_NAME);
 
             // get shard references.

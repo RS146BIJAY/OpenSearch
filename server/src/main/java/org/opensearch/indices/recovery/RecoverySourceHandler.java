@@ -254,12 +254,10 @@ public abstract class RecoverySourceHandler {
         // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
         final long trimAboveSeqNo = startingSeqNo - 1;
         sendSnapshotStep.whenComplete(r -> {
-//            System.out.println("sendSnapshotStep completed");
             finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep);
         }, onFailure);
 
         finalizeStep.whenComplete(r -> {
-//            System.out.println("finalizeStep completed");
             final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
             final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
             final SendFileResult sendFileResult = sendFileStep.result();
@@ -483,8 +481,6 @@ public abstract class RecoverySourceHandler {
                     totalSizeInBytes += md.length();
                 }
 
-                System.out.println("recovery [phase1]: recovering_files " + String.join(", ", phase1FileNames)
-                    + " reusing_files " + String.join(", ", phase1ExistingFileNames));
                 logger.trace(
                     "recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
                     phase1FileNames.size(),
@@ -507,7 +503,6 @@ public abstract class RecoverySourceHandler {
                 );
 
                 sendFileInfoStep.whenComplete(r -> {
-                    System.out.println("sendFileInfoStep completed");
                     logger.debug("sendFileInfoStep completed");
                     sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep);
                 }, listener::onFailure);
@@ -515,13 +510,10 @@ public abstract class RecoverySourceHandler {
                 // When doing peer recovery of remote store enabled replica, retention leases are not required.
                 if (skipCreateRetentionLeaseStep) {
                     sendFilesStep.whenComplete(r -> {
-                        System.out.println("sendFilesStep completed");
-                        logger.debug("sendFilesStep completed");
                         createRetentionLeaseStep.onResponse(null);
                     }, listener::onFailure);
                 } else {
                     sendFilesStep.whenComplete(r -> {
-                        System.out.println("sendFilesStep completed");
                         logger.debug("sendFilesStep completed");
                         createRetentionLease(startingSeqNo, createRetentionLeaseStep);
                     }, listener::onFailure);
@@ -541,10 +533,8 @@ public abstract class RecoverySourceHandler {
                 final long totalSize = totalSizeInBytes;
                 final long existingTotalSize = existingTotalSizeInBytes;
                 cleanFilesStep.whenComplete(r -> {
-                    System.out.println("cleanFilesStep completed");
                     logger.debug("cleanFilesStep completed");
                     final TimeValue took = stopWatch.totalTime();
-                    System.out.println("recovery [phase1]: took: " + took);
                     logger.trace("recovery [phase1]: took [{}]", took);
                     listener.onResponse(
                         new SendFileResult(
@@ -607,7 +597,6 @@ public abstract class RecoverySourceHandler {
             //
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
             logger.trace("cloning primary's retention lease");
-            System.out.println("cloning primary's retention lease");
             try {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
@@ -615,10 +604,8 @@ public abstract class RecoverySourceHandler {
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                System.out.println("cloned primary's retention lease as " + clonedLease);
                 cloneRetentionLeaseStep.whenComplete(rr -> {
                     logger.debug("cloneRetentionLeaseStep completed");
-                    System.out.println("cloneRetentionLeaseStep completed");
                     listener.onResponse(clonedLease);
                 }, listener::onFailure);
             } catch (RetentionLeaseNotFoundException e) {
@@ -635,11 +622,9 @@ public abstract class RecoverySourceHandler {
                 );
                 addRetentionLeaseStep.whenComplete(rr -> {
                     logger.debug("addRetentionLeaseStep completed");
-                    System.out.println("addRetentionLeaseStep completed");
                     listener.onResponse(newLease);
                 }, listener::onFailure);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
-                System.out.println("created retention lease with estimated checkpoint of " + estimatedGlobalCheckpoint);
             }
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
     }
@@ -682,7 +667,6 @@ public abstract class RecoverySourceHandler {
     }
 
     void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
-        System.out.println("Total translog ops replayed " + totalTranslogOps);
         StopWatch stopWatch = new StopWatch().start();
         final ActionListener<Void> wrappedListener = ActionListener.wrap(nullVal -> {
             stopWatch.stop();
@@ -726,7 +710,6 @@ public abstract class RecoverySourceHandler {
             throw new IndexShardClosedException(request.shardId());
         }
         logger.trace("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
-        System.out.println("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
         final StopWatch stopWatch = new StopWatch().start();
         final StepListener<Void> sendListener = new StepListener<>();
         final OperationBatchSender sender = new OperationBatchSender(
@@ -754,7 +737,6 @@ public abstract class RecoverySourceHandler {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase2]: took [{}]", tookTime);
-            System.out.println("recovery [phase2]: took " + tookTime);
             listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
         }, listener::onFailure);
         sender.start();
@@ -832,7 +814,6 @@ public abstract class RecoverySourceHandler {
                     continue;
                 }
 
-//                System.out.println("Translog operation getting applied " + operation);
                 ops.add(operation);
                 batchSizeInBytes += operation.estimateSize();
                 sentOps.incrementAndGet();
@@ -880,7 +861,6 @@ public abstract class RecoverySourceHandler {
         }
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
-        System.out.println("finalizing recovery");
         /*
          * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
          * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
@@ -897,10 +877,8 @@ public abstract class RecoverySourceHandler {
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
-        System.out.println("Starting finalising recovery.");
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
         finalizeListener.whenComplete(r -> {
-            System.out.println("finalizeListenerStep completed");
             RunUnderPrimaryPermit.run(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
@@ -910,7 +888,6 @@ public abstract class RecoverySourceHandler {
             );
 
             if (request.isPrimaryRelocation()) {
-                System.out.println("performing relocation hand-off");
                 final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabledOrRemoteNode()
                     || (request.sourceNode().isRemoteStoreNode() && request.targetNode().isRemoteStoreNode())
                         ? recoveryTarget::forceSegmentFileSync
@@ -932,7 +909,6 @@ public abstract class RecoverySourceHandler {
                 }
             }
             stopWatch.stop();
-            System.out.println("finalizing recovery took " + stopWatch.totalTime());
             listener.onResponse(null);
         }, listener::onFailure);
     }

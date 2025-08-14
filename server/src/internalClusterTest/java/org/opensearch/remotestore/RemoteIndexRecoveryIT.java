@@ -141,6 +141,7 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8919")
+    @Override
     public void testDoesNotCopyOperationsInSafeCommit() {
 
     }

@@ -133,9 +133,4 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String COUNT = "count";
         static final String DELETED = "deleted";
     }
-
-    @Override
-    public String toString() {
-        return "Docs count: " + count + ", deleted: " + deleted + ", totalSizeInBytes: " + totalSizeInBytes;
-    }
 }
