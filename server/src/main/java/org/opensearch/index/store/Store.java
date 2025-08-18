@@ -95,6 +95,7 @@ import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -113,6 +114,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -123,6 +125,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING;
 import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
 
 /**
@@ -179,6 +182,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardPath shardPath;
     private final boolean isParentFieldEnabledVersion;
     private final boolean isIndexSortEnabled;
+    private final IndexStorePlugin.DirectoryFactory directoryFactory;
 
     // used to ref count files when a new Reader is opened for PIT/Scroll queries
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
@@ -192,7 +196,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null, null);
     }
 
     public Store(
@@ -201,7 +205,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Directory directory,
         ShardLock shardLock,
         OnClose onClose,
-        ShardPath shardPath
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory
     ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
@@ -213,6 +218,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.shardPath = shardPath;
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
         this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
+        this.directoryFactory = directoryFactory;
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -221,6 +227,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    public Directory newTempDirectory(String pathString) throws IOException {
+        return directoryFactory.newFSDirectory(
+            shardPath.resolveIndex().resolve(pathString),
+            this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING),
+            this.indexSettings
+        );
     }
 
     public ShardPath shardPath() {
