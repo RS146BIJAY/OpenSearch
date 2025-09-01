@@ -745,8 +745,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     threadPool
                 );
             } else {
-                Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
-                directory = new CriteriaBasedCompositeDirectory(localDirectory);
+                directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
             store = storeFactory.newStore(
                 shardId,

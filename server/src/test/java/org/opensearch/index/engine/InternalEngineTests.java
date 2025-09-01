@@ -805,6 +805,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             segments = engine.segments(true);
+            // This works for regular scenario because merges are triggered by preparePointInTimeMerge by refresh, which is a blocking merge.
+            // In context aware scenario, addIndexes triggers a non blocking merge before refresh triggers it, so this test case fails
             assertThat(segments.size(), equalTo(1));
         }
     }

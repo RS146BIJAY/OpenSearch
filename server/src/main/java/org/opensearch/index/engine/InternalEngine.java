@@ -1260,9 +1260,17 @@ public class InternalEngine extends Engine {
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_3_2_0)) {
+                iwc.setParentField(Lucene.PARENT_FIELD);
+            }
         }
         if (config().getLeafSorter() != null) {
             iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)
+            && config().getIndexSettings().isSegRepEnabledOrRemoteNode()) {
+            assert null != config().getIndexReaderWarmer();
+            iwc.setMergedSegmentWarmer(config().getIndexReaderWarmer());
         }
         return iwc;
     }
@@ -2171,6 +2179,9 @@ public class InternalEngine extends Engine {
             }
             store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
             try {
+                // This ensures all segments in memory are available to parent writer before triggering a force merge.
+                // This will be needed as in prior scenario, we call a flush before triggering force merge in lucene.
+                refresh("force merge");
                 if (onlyExpungeDeletes) {
                     assert upgrade == false;
                     compositeIndexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
@@ -2395,6 +2406,13 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
+            // For composite IndexWriter, we need to validate that lock is on either the new map or old map. This is because,
+            // map may rotate in between the time when lock was taken on composite IndexWriter and assertion is made. In
+            // this case, write lock may not be present on the new map, but lock maybe present on the old map. In this
+            // scenario, no new entry will be created in the new map as write on new map will be blocked due to an active
+            // write lock on rwl lock taken in the close function call. Once close call completes, new entry in new map
+            // cannot be created due to ensureOpen call in Composite IndexWriter.
+            // TODO: Simulate this with a unit test.
             assert (rwl.isWriteLockedByCurrentThread() && compositeIndexWriter.isWriteLockedByCurrentThread()) || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
