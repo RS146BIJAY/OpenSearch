@@ -312,8 +312,6 @@ public class IngestionEngine extends InternalEngine {
                 + " ]";
             doc.add(softDeletesField);
             compositeIndexWriter.deleteDocument(delete.uid(), false, doc, delete.version(), delete.seqNo(), delete.primaryTerm(), softDeletesField);
-
-//            compositeIndexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
             if (isExternalVersioning) {
                 versionMap.putDeleteUnderLock(
                     delete.uid().bytes(),

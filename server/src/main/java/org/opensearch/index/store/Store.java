@@ -54,6 +54,7 @@ import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -107,6 +108,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -958,13 +960,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
             long fileSize = from.fileLength(src);
-            beforeDownload(fileSize);
+            boolean isCopyingFromRemoteDirectory = !((from instanceof FSDirectory) && ((((FSDirectory) from).getDirectory().toString().contains("temp_"))));
+            if (isCopyingFromRemoteDirectory) {
+                // Update the stats only when we are copying from remote to local directory. As this function gets called
+                // from addIndexes as well when data from child level writer is synced from parent level writer.
+                beforeDownload(fileSize);
+            }
+
             boolean success = false;
             long startTime = System.currentTimeMillis();
             try {
                 super.copyFrom(from, src, dest, context);
                 success = true;
-                afterDownload(fileSize, startTime);
+                if (isCopyingFromRemoteDirectory) {
+                    afterDownload(fileSize, startTime);
+                }
             } finally {
                 if (!success) {
                     downloadFailed(fileSize, startTime);

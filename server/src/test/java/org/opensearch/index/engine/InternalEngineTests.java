@@ -805,6 +805,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             segments = engine.segments(true);
+            // This works for regular scenario because merges are triggered by preparePointInTimeMerge by refresh, which is a blocking merge.
+            // In context aware scenario, addIndexes triggers a non blocking merge before refresh triggers it, so this test case fails
             assertThat(segments.size(), equalTo(1));
         }
     }
@@ -3415,7 +3417,7 @@ public class InternalEngineTests extends EngineTestCase {
             @Override
             public void eval(MockDirectoryWrapper dir) throws IOException {
                 // Fail segment merge with diskfull during merging terms
-                if (callStackContainsAnyOf("mergeWithLogging")) {
+                if (callStackContainsAnyOf("mergeTerms")) {
                     throw new IOException("No space left on device");
                 }
             }
@@ -3513,7 +3515,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             @Override
             public void eval(MockDirectoryWrapper dir) throws IOException {
-                if (callStackContainsAnyOf("mergeWithLogging")) {
+                if (callStackContainsAnyOf("mergeTerms")) {
                     throw new IOException("No space left on device");
                 }
             }
