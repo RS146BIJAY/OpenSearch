@@ -24,10 +24,12 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.Assertions;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
@@ -40,6 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -68,7 +71,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
     }
 
-    public static final class DisposableIndexWriter {
+    static class DisposableIndexWriter {
 
         private final IndexWriter indexWriter;
         private final CriteriaBasedIndexWriterLookup lookupMap;
@@ -93,7 +96,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         private final Map<BytesRef, DeleteEntry> lastDeleteEntrySet;
         private final Map<BytesRef, String> criteria;
         private final ReentrantReadWriteLock mapLock;
-        private final ReleasableLock mapReadLock;
+        private final CriteriaBasedWriterLock mapReadLock;
         private final ReleasableLock mapWriteLock;
         private final long version;
         private boolean closed;
@@ -104,7 +107,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
             this.criteriaBasedIndexWriterMap = criteriaBasedIndexWriterMap;
             this.lastDeleteEntrySet = lastDeleteEntrySet;
             this.mapLock = new ReentrantReadWriteLock();
-            this.mapReadLock = new ReleasableLock(mapLock.readLock());
+            this.mapReadLock = new CriteriaBasedWriterLock(mapLock.readLock(), this);
             this.mapWriteLock = new ReleasableLock(mapLock.writeLock());
             this.criteria = criteria;
             this.version = version;
@@ -150,7 +153,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
             lastDeleteEntrySet.remove(key);
         }
 
-        public ReleasableLock getMapReadLock() {
+        CriteriaBasedWriterLock getMapReadLock() {
             return mapReadLock;
         }
 
@@ -163,21 +166,102 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
             this.closed = true;
         }
 
-        public CriteriaBasedIndexWriterLookup tryAcquireOnCurrentMap() {
-            ReleasableLock lock = this.mapReadLock.tryAcquire();
-            if (lock != null) {
-                if (this.closed == false) {
-                    return this;
-                }
-
-                lock.close();
-            }
-
-            return null;
-        }
+//        public CriteriaBasedIndexWriterLookup tryAcquireOnCurrentMap() {
+//            ReleasableLock lock = this.mapReadLock.tryAcquire();
+//            if (lock != null) {
+//                if (this.closed == false) {
+//                    return this;
+//                }
+//
+//                lock.close();
+//            }
+//
+//            return null;
+//        }
 
         public boolean isClosed() {
             return closed;
+        }
+
+        private static final class CriteriaBasedWriterLock implements Releasable {
+            private final Lock lock;
+            // a per-thread count indicating how many times the thread has entered the lock; only works if assertions are enabled
+            private final ThreadLocal<Integer> holdingThreads;
+            private final CriteriaBasedIndexWriterLookup lookup;
+
+            public CriteriaBasedWriterLock(Lock lock, CriteriaBasedIndexWriterLookup lookup) {
+                this.lock = lock;
+                if (Assertions.ENABLED) {
+                    holdingThreads = new ThreadLocal<>();
+                } else {
+                    holdingThreads = null;
+                }
+
+                this.lookup = lookup;
+            }
+
+            @Override
+            public void close() {
+                lock.unlock();
+                assert removeCurrentThread();
+            }
+
+            public CriteriaBasedIndexWriterLookup acquire() throws EngineException {
+                lock.lock();
+                assert addCurrentThread();
+                return lookup;
+            }
+
+            /**
+             * Try acquiring lock, returning null if unable.
+             */
+            public CriteriaBasedIndexWriterLookup tryAcquire() {
+                boolean locked = lock.tryLock();
+                if (locked) {
+                    assert addCurrentThread();
+                    return lookup;
+                } else {
+                    return null;
+                }
+            }
+
+            /**
+             * Try acquiring lock, returning null if unable to acquire lock within timeout.
+             */
+            public CriteriaBasedIndexWriterLookup tryAcquire(TimeValue timeout) throws InterruptedException {
+                boolean locked = lock.tryLock(timeout.duration(), timeout.timeUnit());
+                if (locked) {
+                    assert addCurrentThread();
+                    return lookup;
+                } else {
+                    return null;
+                }
+            }
+
+            private boolean addCurrentThread() {
+                final Integer current = holdingThreads.get();
+                holdingThreads.set(current == null ? 1 : current + 1);
+                return true;
+            }
+
+            private boolean removeCurrentThread() {
+                final Integer count = holdingThreads.get();
+                assert count != null && count > 0;
+                if (count == 1) {
+                    holdingThreads.remove();
+                } else {
+                    holdingThreads.set(count - 1);
+                }
+                return true;
+            }
+
+            public boolean isHeldByCurrentThread() {
+                if (holdingThreads == null) {
+                    throw new UnsupportedOperationException("asserts must be enabled");
+                }
+                final Integer count = holdingThreads.get();
+                return count != null && count > 0;
+            }
         }
     }
 
@@ -260,6 +344,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
             boolean success = false;
             try {
                 CriteriaBasedIndexWriterLookup current = getCurrentMap();
+                assert current.isClosed() == false;
                 DisposableIndexWriter writer = current.computeIndexWriterIfAbsentForCriteria(criteria, indexWriterSupplier);
                 success = true;
                 return writer;
@@ -278,8 +363,8 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         CriteriaBasedIndexWriterLookup getCurrentMap() {
             CriteriaBasedIndexWriterLookup lookup;
             while(true) {
-                lookup = current.tryAcquireOnCurrentMap();
-                if (lookup != null) {
+                lookup = current.mapReadLock.tryAcquire();
+                if (lookup != null && lookup.isClosed() == false) {
                     return lookup;
                 }
             }
@@ -596,7 +681,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(docs.iterator().next());
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (ReleasableLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
             return disposableIndexWriter.getIndexWriter().addDocuments(docs);
         }
@@ -606,7 +691,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(doc);
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (ReleasableLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
             return disposableIndexWriter.getIndexWriter().addDocument(doc);
         }
@@ -618,7 +703,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(docs.iterator().next());
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (ReleasableLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
             disposableIndexWriter.getIndexWriter().softUpdateDocuments(uid, docs, softDeletesField);
             // TODO: Do we need to add more info in delete entry like id, seqNo, primaryTerm for debugging??
@@ -633,7 +718,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(doc);
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (ReleasableLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
             disposableIndexWriter.getIndexWriter().softUpdateDocument(uid, doc, softDeletesField);
             // TODO: Do we need to add more info in delete entry like id, seqNo, primaryTerm for debugging??
@@ -647,7 +732,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         ensureOpen();
         CompositeIndexWriter.DisposableIndexWriter currentDisposableWriter = getIndexWriterForIdFromCurrent(uid.bytes());
         if (currentDisposableWriter != null) {
-            try(ReleasableLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()) {
+            try(CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()) {
                 deleteInLucene(uid, isStaleOperation, currentDisposableWriter.getIndexWriter(), doc, softDeletesField);
                 // We are adding a delete entry only when we perform a soft update (delete + adding tombstone entry) on current writer.
                 // For stale operation, we are not performing any delete so we skip adding delete entry.
