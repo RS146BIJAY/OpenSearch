@@ -8534,6 +8534,131 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    private static class AddIndexesFailingIndexWriter extends IndexWriter {
+
+        private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
+
+        /**
+         * Constructs a new IndexWriter per the settings given in <code>conf</code>. If you want to make
+         * "live" changes to this writer instance, use {@link #getConfig()}.
+         *
+         * <p><b>NOTE:</b> after ths writer is created, the given configuration instance cannot be passed
+         * to another writer.
+         *
+         * @param d    the index directory. The index is either created or appended according <code>
+         *             conf.getOpenMode()</code>.
+         * @param conf the configuration settings according to which IndexWriter should be initialized.
+         * @throws IOException if the directory cannot be read/written to, or if it does not exist and
+         *                     <code>conf.getOpenMode()</code> is <code>OpenMode.APPEND</code> or if there is any other
+         *                     low-level IO error
+         */
+        public AddIndexesFailingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
+            super(d, conf);
+        }
+
+        @Override
+        public long addIndexes(Directory... dirs) throws IOException {
+            maybeThrowFailure();
+            return super.addIndexes(dirs);
+        }
+
+        private void maybeThrowFailure() throws IOException {
+            if (failureToThrow.get() != null) {
+                Exception failure = failureToThrow.get().get();
+                clearFailure(); // one shot
+                if (failure instanceof RuntimeException) {
+                    throw (RuntimeException) failure;
+                } else if (failure instanceof IOException) {
+                    throw (IOException) failure;
+                } else {
+                    assert false : "unsupported failure class: " + failure.getClass().getCanonicalName();
+                }
+            }
+        }
+
+        public void setThrowFailure(Supplier<Exception> failureSupplier) {
+            failureToThrow.set(failureSupplier);
+        }
+
+        public void clearFailure() {
+            failureToThrow.set(null);
+        }
+    }
+
+    public void testShardFailsForCompositeIndexWriterInCaseAddIndexesThrewExceptionWithAppend() throws IOException, InterruptedException {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final Path translogPath = createTempDir("testFailEngineOnRandomIO");
+        try (Store store = createStore(wrapper)) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_1, null);
+
+            AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
+            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+                throwingIndexWriter.set(new AddIndexesFailingIndexWriter(directory, iwc));
+                return throwingIndexWriter.get();
+            })){
+                // test document failure while indexing
+                if (randomBoolean()) {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
+                } else {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                }
+                // test index with document failure
+                engine.index(indexForDoc(doc1));
+                engine.index(indexForDoc(doc2));
+                engine.index(indexForDoc(doc3));
+                try {
+                    engine.refresh("testing");
+                    fail();
+                } catch (AlreadyClosedException ex) {
+                    if (ex.getCause() != null) {
+                        assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                    }
+                } catch (RefreshFailedEngineException ex) {
+                    // fine
+                }
+            }
+        }
+    }
+
+    public void testShardFailsForCompositeIndexWriterInCaseAddIndexesThrewExceptionWithUpdate() throws IOException, InterruptedException {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final Path translogPath = createTempDir("testFailEngineOnRandomIO");
+        try (Store store = createStore(wrapper)) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+
+            AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
+            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+                throwingIndexWriter.set(new AddIndexesFailingIndexWriter(directory, iwc));
+                return throwingIndexWriter.get();
+            })){
+                // test document failure while indexing
+                if (randomBoolean()) {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
+                } else {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                }
+                // test index with document failure
+                engine.index(indexForDoc(doc1));
+                engine.index(indexForDoc(doc2));
+                engine.index(indexForDoc(doc3));
+                try {
+                    engine.refresh("testing");
+                    fail();
+                } catch (AlreadyClosedException ex) {
+                    if (ex.getCause() != null) {
+                        assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                    }
+                } catch (RefreshFailedEngineException ex) {
+                    // fine
+                }
+            }
+        }
+    }
+
     private EngineConfig createEngineConfigWithMapperSupplierForDerivedSource(Store store) throws IOException {
         // Setup with derived source enabled
         Settings settings = Settings.builder()

@@ -361,13 +361,15 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         // never applied on this map as write lock gets only during closing time. We are doing this instead of acquire,
         // because acquire can also apply a read lock in case refresh completed and map is closed.
         CriteriaBasedIndexWriterLookup getCurrentMap() {
-            CriteriaBasedIndexWriterLookup lookup;
-            while(true) {
-                lookup = current.mapReadLock.tryAcquire();
-                if (lookup != null && lookup.isClosed() == false) {
-                    return lookup;
-                }
-            }
+//            CriteriaBasedIndexWriterLookup lookup;
+//            while(true) {
+//                lookup = current.mapReadLock.tryAcquire();
+//                if (lookup != null) {
+//                    return lookup;
+//                }
+//            }
+
+            return current.mapReadLock.tryAcquire();
         }
 
         boolean hasNewIndexingOrUpdates() {
