@@ -1000,6 +1000,8 @@ public class InternalEngine extends Engine {
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
+                System.out.println("After index with id " + index.id() + " with term " + index.uid() + " with seqNo "
+                    + index.seqNo() + " with origin " + index.origin() + " on indexWriter " + compositeIndexWriter);
                 return indexResult;
             } finally {
                 releaseInFlightDocs(reservedDocs);
@@ -1167,8 +1169,10 @@ public class InternalEngine extends Engine {
                 addStaleDocs(index.docs(), compositeIndexWriter, index.uid());
             } else if (plan.useLuceneUpdateDocument) {
                 assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
+                System.out.println("Updating document with id " + index.id() + " with origin " + index.origin() + " to parent writer " + compositeIndexWriter);
                 updateDocs(index.uid(), index.docs(), compositeIndexWriter, plan.versionForIndexing, index.seqNo(), index.primaryTerm());
             } else {
+                System.out.println("Adding document with id " + index.id() + " with origin " + index.origin() + " to parent writer " + compositeIndexWriter);
                 // document does not exists, we can optimize for create, but double check if assertions are running
 //                assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 addDocs(index.docs(), compositeIndexWriter, index.uid());
@@ -1526,6 +1530,8 @@ public class InternalEngine extends Engine {
                 assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                 localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
             }
+
+            System.out.println("After delete with id " + delete.id() + " with term " + delete.uid() + " with seqNo " + delete.seqNo() + " on indexWriter " + compositeIndexWriter);
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
@@ -1671,6 +1677,7 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
+            System.out.println("Delete document with id " + delete.id() + " term: " + delete.uid() + " to parent writer " + compositeIndexWriter);
             final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
@@ -1938,6 +1945,7 @@ public class InternalEngine extends Engine {
 //                        refreshed = referenceManager.maybeRefresh();
 //                    }
 
+                    System.out.println("Refreshing parent writer " + compositeIndexWriter);
                     referenceManager.maybeRefreshBlocking();
                     refreshed = true;
 

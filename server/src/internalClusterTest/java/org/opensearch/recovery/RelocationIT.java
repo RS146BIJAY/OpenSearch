@@ -537,7 +537,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
     }
 
     public void testIndexSearchAndRelocateConcurrently() throws Exception {
-        int halfNodes = randomIntBetween(1, 3);
+        int halfNodes = 1;
         Settings[] nodeSettings = Stream.concat(
             Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
             Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)

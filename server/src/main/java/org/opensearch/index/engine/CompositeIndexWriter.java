@@ -412,6 +412,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
     private void deletePreviousVersionsForUpdatedDocuments() throws IOException {
         Map<BytesRef, DeleteEntry> deleteEntrySet = getLastDeleteEntrySet();
         for (DeleteEntry deleteEntry: deleteEntrySet.values()) {
+            System.out.println("Applying delete entry " + deleteEntry.getTerm() + " to parent writer " + this);
             // For both updates and deletes do a delete only in parent. For updates, latest writes will be on mark for flush writer,
             // do delete entry in parent. For delete, do a delete in parent. This will take care of scenario incase deleteInLucene,
             // delete went to mark for refresh.
@@ -736,15 +737,19 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
         if (currentDisposableWriter != null) {
             try(CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()) {
                 deleteInLucene(uid, isStaleOperation, currentDisposableWriter.getIndexWriter(), doc, softDeletesField);
+                System.out.println("Trying to add delete entry " + uid.bytes() + " with stale " + isStaleOperation + " to writer " + this);
                 // We are adding a delete entry only when we perform a soft update (delete + adding tombstone entry) on current writer.
                 // For stale operation, we are not performing any delete so we skip adding delete entry.
                 if (!isStaleOperation) {
+                    System.out.println("Added delete entry " + uid.bytes() + " with stale " + isStaleOperation + " to writer " + this);
                     putLastDeleteEntryUnderLockInNewMap(uid.bytes(), new DeleteEntry(uid, version, seqNo, primaryTerm));
                 }
             }
         } else {
             deleteInLucene(uid, isStaleOperation, accumulatingIndexWriter, doc, softDeletesField);
+            System.out.println("Trying to add delete entry " + uid.bytes() + " with stale " + isStaleOperation + " to writer " + this);
             if (!isStaleOperation) {
+                System.out.println("Added delete entry " + uid.bytes() + " with stale " + isStaleOperation + " to writer " + this);
                 // Add delete entry here as well just in case there is any index writer in mark for refresh.
                 putLastDeleteEntryUnderLockInNewMap(uid.bytes(), new DeleteEntry(uid, version, seqNo, primaryTerm));
             }
