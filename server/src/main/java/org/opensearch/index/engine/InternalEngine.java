@@ -51,6 +51,7 @@ import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -181,7 +182,7 @@ public class InternalEngine extends Engine {
     private final TranslogDeletionPolicy translogDeletionPolicy;
 
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
-    private final ExternalReaderManager externalReaderManager;
+    private final ExternalReaderManager externalReaderManager1;
     private final OpenSearchReaderManager internalReaderManager;
 
     private final Lock flushLock = new ReentrantLock();
@@ -322,10 +323,10 @@ public class InternalEngine extends Engine {
             externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig));
             internalReaderManager = externalReaderManager.internalReaderManager;
             this.internalReaderManager = internalReaderManager;
-            this.externalReaderManager = externalReaderManager;
+            this.externalReaderManager1 = externalReaderManager;
             internalReaderManager.addListener(versionMap);
             for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
-                this.externalReaderManager.addListener(listener);
+                this.externalReaderManager1.addListener(listener);
             }
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.internalReaderManager.addListener(listener);
@@ -335,6 +336,30 @@ public class InternalEngine extends Engine {
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             internalReaderManager.addListener(compositeIndexWriter);
+            internalReaderManager.addListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() throws IOException {
+
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) throws IOException {
+                    if (didRefresh && externalReaderManager1.isWarmedUp) {
+                        BytesRef term;
+                        try (Engine.Searcher searcher = acquireSearcher("validate")) {
+                            System.out.print("Term present after refresh on reader is for writer:  " + compositeIndexWriter + " is:    ");
+                            IndexReader reader = searcher.getIndexReader();
+                            List<LeafReaderContext> leaves = reader.leaves();
+                            for (LeafReaderContext leaf : leaves) {
+                                TermsEnum termsEnum = leaf.reader().terms(IdFieldMapper.NAME).iterator();
+                                while ((term = termsEnum.next()) != null) {
+                                    System.out.print(term + ", ");
+                                }
+                            }
+                        }
+                    }
+                }
+            });
 
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
                 SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo())
@@ -351,7 +376,7 @@ public class InternalEngine extends Engine {
                 }
             }
             completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
-            this.externalReaderManager.addListener(completionStatsCache);
+            this.externalReaderManager1.addListener(completionStatsCache);
             success = true;
         } finally {
             if (success == false) {
@@ -503,7 +528,7 @@ public class InternalEngine extends Engine {
                 case "segments_stats":
                     break;
                 default:
-                    assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
+                    assert externalReaderManager1.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
             }
         }
         return true;
@@ -2429,7 +2454,7 @@ public class InternalEngine extends Engine {
                     internalReaderManager.removeListener(versionMap);
                 }
                 try {
-                    IOUtils.close(externalReaderManager, internalReaderManager);
+                    IOUtils.close(externalReaderManager1, internalReaderManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close ReaderManager", e);
                 }
@@ -2466,7 +2491,7 @@ public class InternalEngine extends Engine {
             case INTERNAL:
                 return internalReaderManager;
             case EXTERNAL:
-                return externalReaderManager;
+                return externalReaderManager1;
             default:
                 throw new IllegalStateException("unknown scope: " + scope);
         }
