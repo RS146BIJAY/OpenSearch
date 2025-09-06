@@ -2308,6 +2308,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
+                        System.out.println("Closing and flushing engine due to reason " + reason + " with engine name " + engine);
                         engine.flushAndClose();
                     }
                 } finally {
@@ -5251,6 +5252,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long recoverUpto = this.isRemoteTranslogEnabled() || indexSettings().isSegRepEnabledOrRemoteNode()
             ? Long.MAX_VALUE
             : globalCheckpoint;
+        System.out.println("For processed local checkpoint " + newEngineReference.get().getProcessedLocalCheckpoint()
+            + " recover upto " + recoverUpto);
         newEngineReference.get()
             .translogManager()
             .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), recoverUpto);

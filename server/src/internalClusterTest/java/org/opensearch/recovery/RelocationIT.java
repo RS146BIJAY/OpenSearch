@@ -605,6 +605,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             logger.info(" --> checking iteration {}", i);
             SearchResponse afterRelocation = client().prepareSearch().setSize(ids.size()).get();
             assertNoFailures(afterRelocation);
+            System.out.println("For iteration " + i + " result is " + afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[0]));
         }
         stopped.set(true);

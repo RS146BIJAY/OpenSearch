@@ -381,9 +381,10 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
 
     @Override
     public void beforeRefresh() throws IOException {
+        System.out.println("Rotating writer with delete entry " + liveIndexWriterDeletesMap.current.lastDeleteEntrySet.size() + " for writer " + this);
         // Rotate map first so all new writes goes to new generation writers.
         liveIndexWriterDeletesMap = liveIndexWriterDeletesMap.buildTransitionMap();
-        logger.debug("Trying to acquire write lock during refresh of composite IndexWriter.");
+        logger.debug("Trying to acquire write lock during refresh of composite IndexWriter. " + this);
         try(Releasable ignore = liveIndexWriterDeletesMap.old.mapWriteLock.acquire();
             CriteriaBasedIndexWriterLookup oldMap = liveIndexWriterDeletesMap.old;
         ) {
