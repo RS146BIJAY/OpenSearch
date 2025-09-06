@@ -5251,6 +5251,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long recoverUpto = this.isRemoteTranslogEnabled() || indexSettings().isSegRepEnabledOrRemoteNode()
             ? Long.MAX_VALUE
             : globalCheckpoint;
+        System.out.println("For processed local checkpoint " + newEngineReference.get().getProcessedLocalCheckpoint()
+            + " recover upto " + recoverUpto);
         newEngineReference.get()
             .translogManager()
             .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), recoverUpto);
