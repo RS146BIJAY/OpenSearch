@@ -223,6 +223,7 @@ public abstract class AbstractPublishCheckpointAction<
         Objects.requireNonNull(replica);
         ActionListener.completeWith(listener, () -> {
             logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", shardRequest, replica.shardId()));
+            System.out.println("Checkpoint " + shardRequest + "received on replica " + replica.shardId());
             // Condition for ensuring that we ignore Segrep checkpoints received on Docrep shard copies.
             // This case will hit iff the replica hosting node is not remote enabled and replication type != SEGMENT
             if (replica.indexSettings().isAssignedOnRemoteNode() == false && replica.indexSettings().isSegRepLocalEnabled() == false) {

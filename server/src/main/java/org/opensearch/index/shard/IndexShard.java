@@ -1905,6 +1905,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             snapshot = getSegmentInfosSnapshot();
             final SegmentInfos segmentInfos = snapshot.get();
+            System.out.println("From segmentInfosAndCheckPoint for engine " + getEngine() + " max seqNo is " + segmentInfos.userData.get(MAX_SEQ_NO));
             return new Tuple<>(snapshot, computeReplicationCheckpoint(segmentInfos));
         } catch (IOException | AlreadyClosedException e) {
             logger.error("Error Fetching SegmentInfos and latest checkpoint", e);
@@ -3977,7 +3978,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
-    Engine getEngine() {
+    public Engine getEngine() {
         Engine engine = getEngineOrNull();
         if (engine == null) {
             throw new AlreadyClosedException("engine is closed");
@@ -5253,7 +5254,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? Long.MAX_VALUE
             : globalCheckpoint;
         System.out.println("For processed local checkpoint " + newEngineReference.get().getProcessedLocalCheckpoint()
-            + " recover upto " + recoverUpto);
+            + " recover upto " + recoverUpto + " for engine " + newEngineReference.get());
         newEngineReference.get()
             .translogManager()
             .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), recoverUpto);

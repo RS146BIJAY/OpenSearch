@@ -159,11 +159,13 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         cancellableThreads.checkForCancel();
+        System.out.println("Trying to get checkpoints for " + indexShard.getEngine());
         getCheckpointMetadata(checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
             ReplicationCheckpoint getMetadataCheckpoint = checkpointInfo.getCheckpoint();
             if (indexShard.indexSettings().isSegRepLocalEnabled() && checkpoint.isAheadOf(getMetadataCheckpoint)) {
+                System.out.println("Local Checkpoint " + checkpoint + " for engine " + indexShard.getEngine() + " ahead of fetched metadata checkpoint " + getMetadataCheckpoint);
                 // Fixes https://github.com/opensearch-project/OpenSearch/issues/18490
                 listener.onFailure(
                     new ReplicationFailedException(
@@ -178,7 +180,7 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
             }
 
 
-            System.out.println("Triggering replication ");
+            System.out.println("Triggering replication for engine " + indexShard.getEngine());
             updateCheckpoint(checkpointInfo.getCheckpoint(), checkpointUpdater);
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);

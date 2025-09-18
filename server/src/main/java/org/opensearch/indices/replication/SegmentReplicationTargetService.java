@@ -297,6 +297,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
         logger.debug(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        System.out.println("Replica received new replication checkpoint from primary during recovery " + receivedCheckpoint);
         // if the shard is in any state
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
             // ignore if shard is closed
@@ -490,6 +491,8 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                     latestPublishedCheckpoint
                 )
             );
+
+            System.out.println("Processing latest received checkpoint for shard " + replicaShard.shardId() + ": " + latestPublishedCheckpoint);
             Runnable runnable = () -> {
                 // if we retry ensure the shard is not in the process of being closed.
                 // it will be removed from indexService's collection before the shard is actually marked as closed.

@@ -381,7 +381,8 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
 
     @Override
     public void beforeRefresh() throws IOException {
-        System.out.println("Rotating writer with delete entry " + liveIndexWriterDeletesMap.current.lastDeleteEntrySet.size() + " for writer " + this);
+        System.out.println("Rotating writer with delete entry " + liveIndexWriterDeletesMap.current.lastDeleteEntrySet.size()
+            + " and writersize " + liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.size() + " for writer " + this);
         // Rotate map first so all new writes goes to new generation writers.
         liveIndexWriterDeletesMap = liveIndexWriterDeletesMap.buildTransitionMap();
         logger.debug("Trying to acquire write lock during refresh of composite IndexWriter. " + this);
@@ -420,8 +421,10 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
             addDeleteEntryToWriter(deleteEntry, accumulatingIndexWriter);
         }
 
-        Term uid = new Term(IdFieldMapper.NAME, "-2");
-        accumulatingIndexWriter.deleteDocuments(uid);
+        if (deleteEntrySet.isEmpty() == false) {
+            Term uid = new Term(IdFieldMapper.NAME, "-2");
+            accumulatingIndexWriter.deleteDocuments(uid);
+        }
     }
 
     /**
@@ -626,6 +629,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, C
     }
 
     public void rollback() throws IOException {
+        System.out.println("Rolling back indexwriter " + this);
         if (shouldClose()) {
             Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values().stream()
                 .map(DisposableIndexWriter::getIndexWriter).collect(Collectors.toSet());

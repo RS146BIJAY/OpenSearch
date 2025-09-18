@@ -6410,6 +6410,23 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testDocumentInParentWriterWhileDelete() throws IOException {
+        ParsedDocument doc = testParsedDocument("test", null, testDocument(), B_1, null);
+        Engine.Index index = indexForDoc(doc);
+        engine.index(index);
+        engine.delete(new Engine.Delete(index.id(), index.uid(), primaryTerm.get()));
+        engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+        try(Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(topDocs.scoreDocs[i].doc);
+                System.out.print("Doc with id is: " + luceneDoc.getField("_id") + " ");
+            }
+        }
+
+        System.out.println();
+    }
+
     public void testAcquireIndexCommit() throws Exception {
         IOUtils.close(engine, store);
         store = createStore();

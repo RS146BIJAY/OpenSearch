@@ -12,7 +12,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
@@ -36,6 +39,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -98,6 +102,35 @@ public class NRTReplicationEngine extends Engine {
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
+
+            this.readerManager.addListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() throws IOException {
+
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) throws IOException {
+//                    System.out.println("Tried refreshing for writer " + compositeIndexWriter);
+//                    if (didRefresh && externalReaderManager1.isWarmedUp) {
+//
+//                    }
+
+                    System.out.println("SegRep DidRefresh " + didRefresh);
+                    BytesRef term;
+                    ArrayList<String> test = new ArrayList<>();
+                    try(Engine.Searcher searcher = acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                        TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
+                        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                            org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(topDocs.scoreDocs[i].doc);
+                            test.add(luceneDoc.getField("_id") + "");
+                        }
+                    }
+
+                    System.out.println("Term present after refresh on reader is for engine " + this + " for segrep is: " + Arrays.toString(test.toArray()));
+                }
+            });
+
             final Map<String, String> userData = this.lastCommittedSegmentInfos.getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             translogManagerRef = new WriteOnlyTranslogManager(

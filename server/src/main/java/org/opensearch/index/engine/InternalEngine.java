@@ -57,11 +57,13 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -338,6 +340,7 @@ public class InternalEngine extends Engine {
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             internalReaderManager.addListener(compositeIndexWriter);
+            System.out.println("Creating Engine " + compositeIndexWriter + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
             internalReaderManager.addListener(new ReferenceManager.RefreshListener() {
                 @Override
                 public void beforeRefresh() throws IOException {
@@ -351,24 +354,33 @@ public class InternalEngine extends Engine {
 //
 //                    }
 
+                    System.out.println("DidRefresh " + didRefresh);
                     BytesRef term;
                     ArrayList<String> test = new ArrayList<>();
-                    try (Engine.Searcher searcher = acquireSearcher("validate", SearcherScope.INTERNAL)) {
-                        IndexReader reader = searcher.getIndexReader();
-                        List<LeafReaderContext> leaves = reader.leaves();
-                        for (LeafReaderContext leaf : leaves) {
-                            Terms terms = leaf.reader().terms(IdFieldMapper.NAME);
-                            if (terms != null) {
-                                TermsEnum termsEnum = terms.iterator();
-                                while ((term = termsEnum.next()) != null) {
-//                                    System.out.println("Term present after refresh on reader is for writer:  " + compositeIndexWriter + " is:    " + term + ", ");
-                                    test.add(term.toString());
-                                }
-                            }
-                        }
+//                    try (Engine.Searcher searcher = acquireSearcher("test", SearcherScope.INTERNAL)) {
+//                        IndexReader reader = searcher.getIndexReader();
+//                        List<LeafReaderContext> leaves = reader.leaves();
+//                        for (LeafReaderContext leaf : leaves) {
+//                            Terms terms = leaf.reader().terms(IdFieldMapper.NAME);
+//                            if (terms != null) {
+//                                TermsEnum termsEnum = terms.iterator();
+//                                while ((term = termsEnum.next()) != null) {
+////                                    System.out.println("Term present after refresh on reader is for writer:  " + compositeIndexWriter + " is:    " + term + ", ");
+//                                    test.add(term.toString());
+//                                }
+//                            }
+//                        }
+//                    }
 
-                        System.out.println("Term present after refresh on reader is for writer:  " + compositeIndexWriter + " is: " + Arrays.toString(test.toArray()));
+                    try(Engine.Searcher searcher = acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                        TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
+                        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                            org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(topDocs.scoreDocs[i].doc);
+                            test.add(luceneDoc.getField("_id") + "");
+                        }
                     }
+
+                    System.out.println("Term present after refresh on reader is for writer:  " + compositeIndexWriter + " is: " + Arrays.toString(test.toArray()));
                 }
             });
 
@@ -1988,7 +2000,8 @@ public class InternalEngine extends Engine {
 //                        refreshed = referenceManager.maybeRefresh();
 //                    }
 
-                    System.out.println("Refreshing parent writer " + compositeIndexWriter + " with engine: " + this);
+                    System.out.println("Refreshing parent writer " + compositeIndexWriter + " with engine: " + this
+                        + " " + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
                     referenceManager.maybeRefreshBlocking();
                     refreshed = true;
 
@@ -2461,7 +2474,8 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
-            System.out.println("Closing engine " + compositeIndexWriter + " engine " + this);
+            System.out.println("Closing engine " + compositeIndexWriter + " engine " + this
+                + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
             // For composite IndexWriter, we need to validate that lock is on either the new map or old map. This is because,
             // map may rotate in between the time when lock was taken on composite IndexWriter and assertion is made. In
             // this case, write lock may not be present on the new map, but lock maybe present on the old map. In this
