@@ -340,7 +340,8 @@ public class InternalEngine extends Engine {
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             internalReaderManager.addListener(compositeIndexWriter);
-            System.out.println("Creating Engine " + compositeIndexWriter + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
+            System.out.println("Creating Engine " + compositeIndexWriter + " with checkpoint "
+                + getProcessedLocalCheckpoint() + " from " + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
             internalReaderManager.addListener(new ReferenceManager.RefreshListener() {
                 @Override
                 public void beforeRefresh() throws IOException {
@@ -378,9 +379,10 @@ public class InternalEngine extends Engine {
                             org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(topDocs.scoreDocs[i].doc);
                             test.add(luceneDoc.getField("_id") + "");
                         }
-                    }
 
-                    System.out.println("Term present after refresh on reader is for writer:  " + compositeIndexWriter + " is: " + Arrays.toString(test.toArray()));
+                        System.out.println("Term present after refresh on reader is for writer:  "
+                            + compositeIndexWriter + " with maxSeqNo " + lastRefreshedCheckpoint() + " is: " + Arrays.toString(test.toArray()));
+                    }
                 }
             });
 
@@ -3278,6 +3280,43 @@ public class InternalEngine extends Engine {
         }
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
+    }
+
+    private long getMaxSeqNo(DirectoryReader directoryReader) throws IOException {
+        long maxProcessedSeqNo = -1;
+        final IndexSearcher searcher = new IndexSearcher(directoryReader);
+        searcher.setQueryCache(null);
+        final Query query = new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint(), Long.MAX_VALUE),
+                BooleanClause.Occur.MUST
+            )
+            // exclude non-root nested documents
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
+            .build();
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        for (LeafReaderContext leaf : directoryReader.leaves()) {
+            final Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
+            final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
+            final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+            final DocIdSetIterator iterator = scorer.iterator();
+            final StoredFields storedFields = leaf.reader().storedFields();
+            int docId;
+            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                final long seqNo = dv.docSeqNo(docId);
+                if(seqNo > maxProcessedSeqNo) {
+                    maxProcessedSeqNo = seqNo;
+                }
+
+                idFieldVisitor.reset();
+                storedFields.document(docId, idFieldVisitor);
+            }
+        }
+
+        return maxProcessedSeqNo;
+
     }
 
 }

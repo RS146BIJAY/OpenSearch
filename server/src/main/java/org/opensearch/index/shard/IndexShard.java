@@ -5174,6 +5174,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (engineMutex) {
             verifyNotClosed();
+            System.out.println("Updating checkpoint to " + replicationTracker + " with seqNoStats " + seqNoStats);
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
             // acquireXXXCommit and close works.
             final Engine readOnlyEngine = new ReadOnlyEngine(
@@ -5235,6 +5236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
+            System.out.println("After new engine creation " + this.getEngine() + " is " + newEngineReference.get().getProcessedLocalCheckpoint());
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(

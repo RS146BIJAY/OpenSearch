@@ -28,6 +28,8 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+
 /**
  * Represents the target of a replication event.
  *
@@ -91,6 +93,8 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
                 checkpointInfoResponse.getInfosBytes(),
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen()
             );
+
+            System.out.println("Inside finalise replication for engine " + indexShard.getEngine() + " segmentinfos " + infos.getUserData().get(MAX_SEQ_NO));
             indexShard.finalizeReplication(infos);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
