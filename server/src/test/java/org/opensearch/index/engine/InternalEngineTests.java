@@ -6409,6 +6409,25 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(totalNumDocs, searcher.getIndexReader().numDocs());
         }
     }
+    public void testConcurrentAppendUpdateAndRefreshContext() throws InterruptedException, IOException {
+        String docID = Integer.toString(1);
+        ParsedDocument doc = testParsedDocument(
+            docID,
+            null,
+            testDocumentWithTextField(),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())),
+            null
+        );
+        Engine.Index operation = appendOnlyPrimary(doc, false, 1);
+        engine.index(operation);
+        engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+
+        engine.delete(new Engine.Delete(operation.id(), operation.uid(), primaryTerm.get()));
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+//            TopDocs search = searcher.search(new MatchAllDocsQuery(), searcher.getIndexReader().numDocs());
+            assertEquals(0, searcher.getIndexReader().numDocs());
+        }
+    }
 
     public void testDocumentInParentWriterWhileDelete() throws IOException {
         ParsedDocument doc = testParsedDocument("test", null, testDocument(), B_1, null);
