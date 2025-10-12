@@ -1745,6 +1745,7 @@ public class InternalEngine extends Engine {
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
             logger.trace("flushAndClose now acquire writeLock");
+            System.out.println("flushAndClose now acquire writeLock " + this);
             if (isContextAwareEnabled) {
                 CompositeIndexWriter compositeIndexWriter = (CompositeIndexWriter) documentIndexWriter;
                 try (
@@ -1765,8 +1766,10 @@ public class InternalEngine extends Engine {
 
     private void flushAndCloseInternal() throws IOException {
         logger.trace("flushAndClose now acquired writeLock");
+        System.out.println("flushAndClose now acquired writeLock " + this);
         try {
             logger.debug("flushing shard on close - this might take some time to sync files to disk");
+            System.out.println("flushing shard on close - this might take some time to sync files to disk " + this);
             try {
                 // TODO we might force a flush in the future since we have the write lock already even though recoveries
                 // are running.
@@ -2324,6 +2327,7 @@ public class InternalEngine extends Engine {
         // The logic for closing writer is same as Engine except we are taking additional locks on child level writers.
         if (isClosed.get() == false) {
             logger.debug("close now acquiring writeLock");
+            System.out.println("close now acquiring writeLock " + this);
             if (isContextAwareEnabled) {
                 CompositeIndexWriter compositeIndexWriter = (CompositeIndexWriter) documentIndexWriter;
                 try (
@@ -2344,6 +2348,7 @@ public class InternalEngine extends Engine {
 
     private void closeInternal() throws IOException {
         logger.debug("close acquired writeLock");
+        System.out.println("close acquired writeLock " + this);
         closeNoLock("api", closedLatch);
     }
 
@@ -2381,12 +2386,15 @@ public class InternalEngine extends Engine {
                 }
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
+                System.out.println("rollback indexWriter " + this);
                 try {
                     documentIndexWriter.rollback();
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);
                     throw ex;
                 }
+
+                System.out.println("rollback indexWriter done " + this);
                 logger.trace("rollback indexWriter done");
             } catch (Exception e) {
                 logger.warn("failed to rollback writer on close", e);

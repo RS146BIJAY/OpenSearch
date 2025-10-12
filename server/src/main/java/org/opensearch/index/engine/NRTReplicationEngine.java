@@ -464,6 +464,8 @@ public class NRTReplicationEngine extends Engine {
                         }
                     }
                 }
+
+                System.out.println("Close no lock " + this);
                 IOUtils.close(readerManager, translogManager);
             } catch (Exception e) {
                 logger.error("failed to close engine", e);
