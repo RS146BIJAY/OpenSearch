@@ -826,7 +826,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
 
         @Override
         public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
-            return null;
+            return new FsDirectoryFactory().newFSDirectory(location, lockFactory, indexSettings);
         }
     }
 

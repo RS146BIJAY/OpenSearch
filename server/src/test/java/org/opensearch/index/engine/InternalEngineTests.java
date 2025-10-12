@@ -8594,7 +8594,12 @@ public class InternalEngineTests extends EngineTestCase {
             final ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_1, null);
 
             AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
-            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+                "test",
+                Settings.builder().put(defaultSettings.getSettings())
+                    .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true).build()
+            );
+            try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
                 throwingIndexWriter.set(new AddIndexesFailingIndexWriter(directory, iwc));
                 return throwingIndexWriter.get();
             })) {
@@ -8629,9 +8634,14 @@ public class InternalEngineTests extends EngineTestCase {
             final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             final ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_1, null);
             final ParsedDocument doc3 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+                "test",
+                Settings.builder().put(defaultSettings.getSettings())
+                    .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true).build()
+            );
 
             AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
-            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+            try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
                 throwingIndexWriter.set(new AddIndexesFailingIndexWriter(directory, iwc));
                 return throwingIndexWriter.get();
             })) {

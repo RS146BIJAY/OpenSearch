@@ -67,7 +67,7 @@ public final class IndexWriterUtils {
         }
     }
 
-    private static IndexWriterConfig getIndexWriterConfig(
+    public static IndexWriterConfig getIndexWriterConfig(
         MergeScheduler mergeScheduler,
         Boolean commitOnClose,
         IndexWriterConfig.OpenMode openMode,

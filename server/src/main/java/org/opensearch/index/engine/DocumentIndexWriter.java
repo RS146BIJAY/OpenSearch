@@ -72,7 +72,8 @@ public interface DocumentIndexWriter extends Closeable {
         Field... softDeletesField
     ) throws IOException;
 
-    void deleteDocument(Term uid, boolean isStaleOperation, Iterable<? extends IndexableField> doc, Field... softDeletesField)
+    void deleteDocument(Term uid, boolean isStaleOperation, Iterable<? extends IndexableField> doc, long version,
+                        long seqNo, long primaryTerm, Field... softDeletesField)
         throws IOException;
 
     void forceMergeDeletes(boolean doWait) throws IOException;

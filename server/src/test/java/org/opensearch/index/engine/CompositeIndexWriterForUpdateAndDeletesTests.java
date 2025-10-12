@@ -29,7 +29,8 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
             compositeIndexWriter.beforeRefresh();
             compositeIndexWriter.afterRefresh(true);
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
-                compositeIndexWriter.deleteDocument(operation.uid(), false, newDeleteTombstoneDoc(id), softDeletesField);
+                compositeIndexWriter.deleteDocument(operation.uid(), false, newDeleteTombstoneDoc(id),
+                        1, 2, primaryTerm.get(), softDeletesField);
             }
 
             compositeIndexWriter.beforeRefresh();
@@ -52,7 +53,8 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
             Engine.Index operation = indexForDoc(createParsedDoc(id, null));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
-                compositeIndexWriter.deleteDocument(operation.uid(), false, newDeleteTombstoneDoc(id), softDeletesField);
+                compositeIndexWriter.deleteDocument(operation.uid(), false, newDeleteTombstoneDoc(id),
+                        1, 2, primaryTerm.get(), softDeletesField);
             }
 
             compositeIndexWriter.beforeRefresh();
@@ -84,7 +86,8 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
             operation = indexForDoc(createParsedDoc(id, null));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.softUpdateDocuments(operation.uid(), operation.docs(), 2, 2, primaryTerm.get(), softDeletesField);
-                compositeIndexWriter.deleteDocument(operation.uid(), false, newDeleteTombstoneDoc(id), softDeletesField);
+                compositeIndexWriter.deleteDocument(operation.uid(), false, newDeleteTombstoneDoc(id),
+                        1, 2, primaryTerm.get(), softDeletesField);
             }
 
             compositeIndexWriter.beforeRefresh();

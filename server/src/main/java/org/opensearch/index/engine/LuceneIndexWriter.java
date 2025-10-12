@@ -124,7 +124,8 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     }
 
     @Override
-    public void deleteDocument(Term uid, boolean isStaleOperation, Iterable<? extends IndexableField> doc, Field... softDeletesField)
+    public void deleteDocument(Term uid, boolean isStaleOperation, Iterable<? extends IndexableField> doc, long version,
+                               long seqNo, long primaryTerm, Field... softDeletesField)
         throws IOException {
         if (isStaleOperation) {
             indexWriter.addDocument(doc);
