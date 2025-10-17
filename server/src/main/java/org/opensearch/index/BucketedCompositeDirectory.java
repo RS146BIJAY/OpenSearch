@@ -14,11 +14,11 @@ import org.apache.lucene.store.FilterDirectory;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * Directory wrapper used to filter out child level directory for context aware enabled indices.
+ *
+ */
 public class BucketedCompositeDirectory extends FilterDirectory {
-    /**
-     * Sole constructor, typically called from sub-classes.
-     *
-     */
 
     public static final String CHILD_DIRECTORY_PREFIX = "temp_";
 
@@ -26,6 +26,12 @@ public class BucketedCompositeDirectory extends FilterDirectory {
         super(in);
     }
 
+    /**
+     * List all files within directory filtering out child level directory.
+     * @return files excluding child level directory.
+     *
+     * @throws IOException in case of I/O error
+     */
     @Override
     public String[] listAll() throws IOException {
         return Arrays.stream(super.listAll())

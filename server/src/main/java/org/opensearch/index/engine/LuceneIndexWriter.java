@@ -17,38 +17,78 @@ import org.apache.lucene.index.Term;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Wrapper class for IndexWriter. It delegates all calls to underlying IndexWriter.
+ *
+ */
 public class LuceneIndexWriter implements DocumentIndexWriter {
     private final IndexWriter indexWriter;
 
+    /**
+     * Constructor for LuceneIndexWriter.
+     *
+     * @param indexWriter the underlying IndexWriter to which all function calls are delegated to.
+     */
     public LuceneIndexWriter(IndexWriter indexWriter) {
         this.indexWriter = indexWriter;
     }
 
+    /**
+     * Wrapper function over IndexWriter.getFlushingBytes.
+     *
+     * @return the number of bytes currently being flushed by underlying IndexWriter.
+     */
     @Override
     public long getFlushingBytes() {
         return indexWriter.getFlushingBytes();
     }
 
+    /**
+     * Wrapper function over IndexWriter.getPendingNumDocs.
+     *
+     * @return Returns the number of documents in the index including documents are being added (i. e., reserved) for underlying IndexWriter.
+     */
     @Override
     public long getPendingNumDocs() {
         return indexWriter.getPendingNumDocs();
     }
 
+    /**
+     * Wrapper function for IndexWriter.getConfig.
+     *
+     * @return Returns a LiveIndexWriterConfig, which can be used to query the underlying IndexWriter current settings,
+     *         as well as modify "live" ones.
+     */
     @Override
     public LiveIndexWriterConfig getConfig() {
         return indexWriter.getConfig();
     }
 
+    /**
+     * Wrapper function for IndexWriter.hasPendingMerges.
+     *
+     * @return returns true if there are merges waiting to be scheduled for underlying IndexWriter.
+     */
     @Override
     public boolean hasPendingMerges() {
         return indexWriter.hasPendingMerges();
     }
 
+    /**
+     * Wrapper function for IndexWriter.hasUncommittedChanges
+     *
+     * @return Returns true if there may be changes that have not been committed for underlying IndexWriter.
+     */
     @Override
     public boolean hasUncommittedChanges() {
         return indexWriter.hasUncommittedChanges();
     }
 
+    /**
+     * Wrapper function for IndexWriter.getTragicException
+     *
+     * @return Associated tragic exception for underlying IndexWriter.
+     */
     @Override
     public Throwable getTragicException() {
         return indexWriter.getTragicException();

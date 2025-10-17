@@ -4969,8 +4969,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
-        // If the index is remote store backed or context aware enabled, then search idle is not supported. This is to ensure that async
-        // refresh
+        // If the index is remote store backed, then search idle is not supported. This is to ensure that async
+        // refresh. If the index is context aware enabled, search idle is not supported. This will ensure periodic sync
+        // between child and parent IndexWriter.
         // task continues to upload to remote store periodically.
         if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode() || indexSettings.isContextAwareEnabled()) {
             return false;

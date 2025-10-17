@@ -942,6 +942,7 @@ public class Lucene {
                     // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
 
                     // With CAS enabled segments, hard deletes can also be present, so correcting numDocs.
+                    // We are using attribute value here to identify whether segment has CAS enabled or not.
                     int numDocs;
                     if (isContextAwareEnabled(segmentReader)) {
                         numDocs = popCount(hardLiveDocs);

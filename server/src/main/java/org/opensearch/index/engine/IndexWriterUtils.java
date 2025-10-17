@@ -34,6 +34,10 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
+/**
+ * Utility class for creating IndexWriter and IndexWriterConfig.
+ *
+ */
 public final class IndexWriterUtils {
     private IndexWriterUtils() {}
 
@@ -137,7 +141,7 @@ public final class IndexWriterUtils {
         iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
-        if (engineConfig.getIndexSettings().isContextAwareEnabled() && associatedCriteria != null) {
+        if (engineConfig.getIndexSettings().isContextAwareEnabled()) {
             iwc.setCodec(new CriteriaBasedCodec(engineConfig.getCodec(), associatedCriteria));
         } else {
             iwc.setCodec(engineConfig.getCodec());

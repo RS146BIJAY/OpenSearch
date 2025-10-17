@@ -22,6 +22,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Wrapper merge policy which is used for context aware enabled indices. This merge policy merges segments that belongs
+ * to same bucket.
+ *
+ */
 public class CriteriaBasedMergePolicy extends FilterMergePolicy {
 
     protected final MergePolicy in;
@@ -31,6 +36,15 @@ public class CriteriaBasedMergePolicy extends FilterMergePolicy {
         this.in = in;
     }
 
+    /**
+     * Merges the segments belonging to same group.
+     *
+     * @param mergeTrigger the event that triggered the merge
+     * @param infos the total set of segments in the index
+     * @param mergeContext the IndexWriter to find the merges on
+     * @return
+     * @throws IOException
+     */
     @Override
     public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos infos, MergeContext mergeContext) throws IOException {
         final Set<SegmentCommitInfo> merging = mergeContext.getMergingSegments();

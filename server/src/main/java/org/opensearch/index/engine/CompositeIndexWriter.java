@@ -51,8 +51,67 @@ import java.util.stream.Collectors;
 import static org.opensearch.index.BucketedCompositeDirectory.CHILD_DIRECTORY_PREFIX;
 
 /**
- * Maps _uid value to its deletes information. It also contains information on IndexWriter.
+ * <p>
+ * InternalEngine delegates all IndexWriter specific operations through the
+ * CompositeIndexWriter class rather than directly interacting with IndexWriter.
+ * This wrapper serves as a unified interface for coordinating write operations
+ * with group-specific IndexWriters and managing read operations through an
+ * accumulating parent IndexWriter. This wrapper class also handles synchronization
+ * of group-specific IndexWriters with the accumulating IndexWriter during refresh
+ * by implementing the RefreshListener interface.
  *
+ * <p>
+ * In addition to managing group-specific IndexWriters, CompositeIndexWriter tracks
+ * all updates and deletions applied during each refresh cycle. This state is maintained
+ * using a refresh-rotating map structure analogous to LiveVersionMap's implementation.
+ *
+ * <p>
+ * Indexing
+ * <p>
+ * During indexing, CompositeIndexWriter evaluates the group for a document using a
+ * grouping criteria function. The specific IndexWriter selected for indexing a document
+ * depends on the outcome of the document for the grouping criteria function. Should the
+ * relevant IndexWriter entry inside the map be null, a new IndexWriter will be instantiated
+ * for this criteria and added to the map.
+ * <p>
+ * Version Resolution
+ * <p>
+ * InternalEngine resolves the current version of a document before indexing it to
+ * determine whether the request is an indexing or update operation. InternalEngine
+ * performs this by first doing a lookup in the version map. In case no version of the
+ * document is present in the version map, it queries Lucene via the searcher to look
+ * for the current version of the document. Since the version map is maintained throughout
+ * an entire refresh cycle, there is no change in how versions are resolved in the above
+ * approach. InternalEngine performs a lookup for the document first in the version map
+ * followed by querying the document associated with the parent IndexWriter.
+ * <p>
+ *
+ * Locking Mechanism
+ * <p>
+ * OpenSearch currently utilizes ReentrantReadWriteLock to ensure the underlying
+ * IndexWriter is not closed during active indexing. With context-aware segments, an
+ * additional lock is used for each IndexWriterMap inside CompositeIndexWriter.
+ * <p>
+ *
+ * During each write/update/delete operation, a read lock on the ReentrantLock
+ * associated with the map is acquired. This lock is released when indexing completes.
+ * During refresh, a write lock on the same ReentrantLock is obtained just before
+ * rotating the WriterMap. Since the write lock is acquired only when there is no
+ * active read lock on the writer, all writers in a map are closed and synced with
+ * the parent writer only when there are no active writes happening on these IndexWriters.
+ * <p>
+ *
+ * Updates and Deletes
+ * <p>
+ * With multiple IndexWriters, indexing and updates can occur on different IndexWriters.
+ * Therefore, document versions must be synchronized across IndexWriters. This is achieved
+ * by performing a partial soft delete (delete without indexing tombstone entry) on the
+ * IndexWriters containing the previous version of the document.
+ *
+ * @see org.opensearch.index.engine.InternalEngine
+ * @see org.apache.lucene.search.ReferenceManager.RefreshListener
+ * @see org.opensearch.index.engine.LiveVersionMap
+ * @see org.apache.lucene.index.IndexWriter
  */
 public class CompositeIndexWriter implements ReferenceManager.RefreshListener, DocumentIndexWriter {
 
@@ -83,6 +142,39 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, D
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
     }
 
+    /**
+     *
+     * All write operations will now be handled by a pool of group specific disposable
+     * IndexWriters. These disposable IndexWriters will be modelled after Lucene's DWPTs
+     * (DocumentsWriterPerThread).
+     *
+     * <h2>States of Disposable IndexWriters</h2>
+     *
+     * <p>Similar to DWPTs, these disposable IndexWriters will have three states:</p>
+     *
+     * <h3>Active</h3>
+     *
+     * <p>IndexWriters in this state will handle all write requests coming to InternalEngine.
+     * For each group/tenant, there will be at most a single IndexWriter that will be in the
+     * active state. OpenSearch maintains a mapping of active IndexWriters, each associated
+     * with a specific group. During indexing, the specific IndexWriter selected for indexing
+     * a document will depend on the outcome of the document for the grouping criteria function.
+     * Should there be no active IndexWriter for a group, a new IndexWriter will be instantiated
+     * for this criteria and added to the pool.</p>
+     *
+     * <h3>Mark for Refresh</h3>
+     *
+     * <p>During refresh, we transition all group specific active IndexWriters from active pool
+     * to an intermediate refresh pending state. At this stage, these IndexWriters will not be
+     * accepting any active writes, but will continue to handle any ongoing operation.</p>
+     *
+     * <h3>Close</h3>
+     *
+     * <p>At this stage, OpenSearch will sync the content of group specific IndexWriters with
+     * an accumulating parent IndexWriter via Lucene's addIndexes API call. Post the sync, we
+     * remove all group specific IndexWriters from Mark for refresh stage and close them.</p>
+     *
+     */
     static class DisposableIndexWriter {
 
         private final IndexWriter indexWriter;
@@ -102,6 +194,15 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, D
         }
     }
 
+    /**
+     * This class represents a lookup entry inside LiveIndexWriterDeletesMap. This class is mapped similar to <code>
+     * LiveVersionMap.VersionLookup</code>. This is maintained on per refresh cycle basis. This contains the group
+     * specific IndexWriter associated with this refresh cycle, the updates/deletes that came in this refresh cycle and
+     * a pair of read/write lock which is used to ensure that a look is correctly closed (no ongoing operation on
+     * IndexWriter associated with lookup). Composite IndexWriter syncs a lookup with accumulating IndexWriter during
+     * each refresh cycle.
+     *
+     */
     public static final class CriteriaBasedIndexWriterLookup implements Closeable {
         private final Map<String, DisposableIndexWriter> criteriaBasedIndexWriterMap;
         private final Map<BytesRef, DeleteEntry> lastDeleteEntrySet;
@@ -294,7 +395,7 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, D
     }
 
     /**
-     * Map of version lookups
+     * Map used for maintaining <code>CriteriaBasedIndexWriterLookup</code>
      *
      * @opensearch.internal
      */
@@ -933,7 +1034,11 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, D
         return new CompositeIndexWriter.DisposableIndexWriter(
             IndexWriterUtils.createWriter(
                 store.newTempDirectory(CHILD_DIRECTORY_PREFIX + associatedCriteria + "_" + UUID.randomUUID()),
-                new OpenSearchConcurrentMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings()),
+                new OpenSearchConcurrentMergeScheduler(
+                    engineConfig.getShardId(),
+                    engineConfig.getIndexSettings(),
+                    engineConfig.getMergedSegmentTransferTracker()
+                ),
                 true,
                 IndexWriterConfig.OpenMode.CREATE,
                 null,
