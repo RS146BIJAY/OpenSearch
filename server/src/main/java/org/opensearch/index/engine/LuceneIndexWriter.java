@@ -10,9 +10,9 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.opensearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -130,19 +130,19 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     }
 
     @Override
-    public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs, Term uid) throws IOException {
+    public long addDocuments(Iterable<ParseContext.Document> docs, Term uid) throws IOException {
         return indexWriter.addDocuments(docs);
     }
 
     @Override
-    public long addDocument(Iterable<? extends IndexableField> doc, Term uid) throws IOException {
+    public long addDocument(ParseContext.Document doc, Term uid) throws IOException {
         return indexWriter.addDocument(doc);
     }
 
     @Override
     public void softUpdateDocuments(
         Term uid,
-        Iterable<? extends Iterable<? extends IndexableField>> docs,
+        Iterable<ParseContext.Document> docs,
         long version,
         long seqNo,
         long primaryTerm,
@@ -154,7 +154,7 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     @Override
     public void softUpdateDocument(
         Term uid,
-        Iterable<? extends IndexableField> doc,
+        ParseContext.Document doc,
         long version,
         long seqNo,
         long primaryTerm,
@@ -167,7 +167,7 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     public void deleteDocument(
         Term uid,
         boolean isStaleOperation,
-        Iterable<? extends IndexableField> doc,
+        ParseContext.Document doc,
         long version,
         long seqNo,
         long primaryTerm,

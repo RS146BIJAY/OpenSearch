@@ -10,9 +10,9 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.opensearch.index.mapper.ParseContext;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -50,32 +50,26 @@ public interface DocumentIndexWriter extends Closeable {
 
     void deleteUnusedFiles() throws IOException;
 
-    long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs, Term uid) throws IOException;
+    long addDocuments(Iterable<ParseContext.Document> docs, Term uid) throws IOException;
 
-    long addDocument(Iterable<? extends IndexableField> doc, Term uid) throws IOException;
+    long addDocument(ParseContext.Document doc, Term uid) throws IOException;
 
     void softUpdateDocuments(
         Term uid,
-        Iterable<? extends Iterable<? extends IndexableField>> docs,
+        Iterable<ParseContext.Document> docs,
         long version,
         long seqNo,
         long primaryTerm,
         Field... softDeletesField
     ) throws IOException;
 
-    void softUpdateDocument(
-        Term uid,
-        Iterable<? extends IndexableField> doc,
-        long version,
-        long seqNo,
-        long primaryTerm,
-        Field... softDeletesField
-    ) throws IOException;
+    void softUpdateDocument(Term uid, ParseContext.Document doc, long version, long seqNo, long primaryTerm, Field... softDeletesField)
+        throws IOException;
 
     void deleteDocument(
         Term uid,
         boolean isStaleOperation,
-        Iterable<? extends IndexableField> doc,
+        ParseContext.Document doc,
         long version,
         long seqNo,
         long primaryTerm,
