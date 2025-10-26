@@ -454,7 +454,7 @@ public final class IndexSettings {
      */
     public static final Setting<Boolean> INDEX_CONTEXT_AWARE_ENABLED_SETTING = Setting.boolSetting(
         "index.context_aware.enabled",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );

@@ -997,7 +997,9 @@ public class CompositeIndexWriter implements ReferenceManager.RefreshListener, D
     }
 
     private String getGroupingCriteriaForDoc(final ParseContext.Document doc) {
-        return doc == null ? null : doc.getGroupingCriteria();
+//        return doc == null ? null : doc.getGroupingCriteria();
+
+        return "-1";
     }
 
     @Override

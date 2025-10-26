@@ -32,12 +32,14 @@
 package org.opensearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.opensearch.common.Nullable;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Function;
 
 final class MockInternalEngine extends InternalEngine {
@@ -97,7 +99,7 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return super.acquireSearcherSupplier(wrapper.andThen(s -> support().wrapSearcher(s)), scope);
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope,  @Nullable Set<String> criteria) throws EngineException {
+        return super.acquireSearcherSupplier(wrapper.andThen(s -> support().wrapSearcher(s)), scope, criteria);
     }
 }
