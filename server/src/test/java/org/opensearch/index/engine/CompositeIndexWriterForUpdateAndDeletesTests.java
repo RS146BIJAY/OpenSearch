@@ -21,7 +21,7 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         CompositeIndexWriter compositeIndexWriter = null;
         try {
             compositeIndexWriter = new CompositeIndexWriter(config(), createWriter(), newSoftDeletesPolicy(), softDeletesField);
-            Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+            Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
             }
@@ -57,7 +57,7 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         CompositeIndexWriter compositeIndexWriter = null;
         try {
             compositeIndexWriter = new CompositeIndexWriter(config(), createWriter(), newSoftDeletesPolicy(), softDeletesField);
-            Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+            Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
                 compositeIndexWriter.deleteDocument(
@@ -89,7 +89,7 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         CompositeIndexWriter compositeIndexWriter = null;
         try {
             compositeIndexWriter = new CompositeIndexWriter(config(), createWriter(), newSoftDeletesPolicy(), softDeletesField);
-            Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+            Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
             }
@@ -97,7 +97,7 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
             compositeIndexWriter.beforeRefresh();
             compositeIndexWriter.afterRefresh(true);
 
-            operation = indexForDoc(createParsedDoc(id, null));
+            operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.softUpdateDocuments(operation.uid(), operation.docs(), 2, 2, primaryTerm.get(), softDeletesField);
                 compositeIndexWriter.deleteDocument(
@@ -128,14 +128,14 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         CompositeIndexWriter compositeIndexWriter = null;
         try {
             compositeIndexWriter = new CompositeIndexWriter(config(), createWriter(), newSoftDeletesPolicy(), softDeletesField);
-            Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+            Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
             }
 
             compositeIndexWriter.beforeRefresh();
             compositeIndexWriter.afterRefresh(true);
-            operation = indexForDoc(createParsedDoc(id, null));
+            operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
 
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.softUpdateDocuments(operation.uid(), operation.docs(), 2, 2, primaryTerm.get(), softDeletesField);
@@ -158,12 +158,12 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         CompositeIndexWriter compositeIndexWriter = null;
         try {
             compositeIndexWriter = new CompositeIndexWriter(config(), createWriter(), newSoftDeletesPolicy(), softDeletesField);
-            Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+            Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
             }
 
-            operation = indexForDoc(createParsedDoc(id, null));
+            operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
             try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
                 compositeIndexWriter.softUpdateDocuments(operation.uid(), operation.docs(), 2, 2, primaryTerm.get(), softDeletesField);
             }

@@ -518,6 +518,9 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             // TODO No more write should happen post this, so that before refresh for syncing writers have all old writers available.
             // TODO Or should we do this in Reader before listner where we are syncing data??
             refreshDocumentsForParentDirectory(oldMap);
+        } catch (Throwable ex) {
+            closed.set(true);
+            throw ex;
         }
     }
 
@@ -785,7 +788,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         return ramBytesUsed + accumulatingIndexWriter.ramBytesUsed();
     }
 
-    // We always set live commit data for parent writer as we are commiting data only in parent writer (as refreshing child level writers).
+    // We always set live commit data for parent writer as we are commiting data only in parent writer (after refreshing child level
+    // writers).
     @Override
     public final synchronized void setLiveCommitData(Iterable<Map.Entry<String, String>> commitUserData) {
         accumulatingIndexWriter.setLiveCommitData(commitUserData);
@@ -838,6 +842,10 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         if (closed.get() == true) {
             throw new AlreadyClosedException("CompositeIndexWriter is closed");
         }
+    }
+
+    public boolean isOpen() {
+        return closed.get() == false;
     }
 
     public boolean isWriteLockedByCurrentThread() {

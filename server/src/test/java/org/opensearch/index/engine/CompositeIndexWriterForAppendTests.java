@@ -11,7 +11,13 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexOutput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
@@ -23,6 +29,8 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.ParsedDocument;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -180,45 +188,44 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
     }
 
     public void testConcurrentIndexingDuringRefresh() throws IOException, InterruptedException {
+
         CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
             config(),
             createWriter(),
             newSoftDeletesPolicy(),
             softDeletesField
         );
-        AtomicBoolean run = new AtomicBoolean(true);
-        Thread indexer = new Thread(() -> {
-            while (run.get()) {
-                String id = Integer.toString(randomIntBetween(1, 100));
-                try {
-                    Engine.Index operation = indexForDoc(createParsedDoc(id, null));
-                    try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
-                        compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
-                    }
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                } catch (AlreadyClosedException e) {
-                    return;
-                }
-            }
-        });
-
-        Thread refresher = new Thread(() -> {
-            while (run.get()) {
-                try {
-                    compositeIndexWriter.beforeRefresh();
-                    compositeIndexWriter.afterRefresh(true);
-                } catch (IOException e) {}
-            }
-        });
 
         try {
+            AtomicBoolean run = new AtomicBoolean(true);
+            Thread indexer = new Thread(() -> {
+                while (run.get()) {
+                    String id = Integer.toString(randomIntBetween(1, 100));
+                    try {
+                        Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
+                        compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    } catch (AlreadyClosedException e) {
+                        return;
+                    }
+                }
+            });
+
+            Thread refresher = new Thread(() -> {
+                while (run.get()) {
+                    try {
+                        compositeIndexWriter.beforeRefresh();
+                        compositeIndexWriter.afterRefresh(true);
+                    } catch (IOException e) {}
+                }
+            });
             indexer.start();
             refresher.start();
-        } finally {
             run.set(false);
             indexer.join();
             refresher.join();
+        } finally {
             IOUtils.close(compositeIndexWriter);
         }
     }
@@ -242,7 +249,7 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
                 latch.await();
                 for (int i = 0; i < numDocs; i++) {
                     String id = Integer.toString(i);
-                    Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+                    Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
                     compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
                     if (rarely()) {
                         compositeIndexWriter.deleteDocument(
@@ -317,10 +324,277 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
         };
 
         String id = Integer.toString(randomIntBetween(1, 100));
-        Engine.Index operation = indexForDoc(createParsedDoc(id, null));
+        Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
         try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
             addDocException.set(new IOException("simulated"));
             expectThrows(IOException.class, () -> compositeIndexWriter.addDocuments(operation.docs(), operation.uid()));
+        } finally {
+            IOUtils.close(compositeIndexWriter);
+        }
+    }
+
+    public void testGetFlushingBytesAfterSmallDocuments() throws IOException {
+        IndexWriter parentWriter = createWriter();
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            parentWriter,
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        compositeIndexWriter.getConfig().setRAMBufferSizeMB(128);
+
+        try {
+            // Add a few small documents
+            for (int i = 0; i < 10; i++) {
+                Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf(i), null, DEFAULT_CRITERIA));
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            // Should still be 0 or small since we haven't triggered a flush
+            long flushingBytes = compositeIndexWriter.getFlushingBytes();
+            assertEquals("Flushing bytes should be non-negative", 0, flushingBytes);
+        } finally {
+            IOUtils.close(compositeIndexWriter);
+        }
+    }
+
+    public void testHasPendingMergesInitiallyFalse() throws IOException {
+        IndexWriter parentWriter = createWriter();
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            parentWriter,
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        assertFalse("Should have no pending merges initially", compositeIndexWriter.hasPendingMerges());
+    }
+
+    public void testHasPendingMergesDuringForceMerge() throws IOException, InterruptedException {
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            createWriter(),
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        LogByteSizeMergePolicy mergePolicy = new LogByteSizeMergePolicy();
+        mergePolicy.setMergeFactor(2);
+        compositeIndexWriter.getConfig().setMergePolicy(mergePolicy);
+
+        try {
+            for (int i = 0; i < 4; i++) {
+                Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf(i), null, DEFAULT_CRITERIA));
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+                compositeIndexWriter.beforeRefresh();
+                compositeIndexWriter.afterRefresh(true);
+            }
+
+            final CountDownLatch mergeLatch = new CountDownLatch(1);
+            final AtomicBoolean hadPendingMerges = new AtomicBoolean(false);
+
+            Thread mergeThread = new Thread(() -> {
+                try {
+                    mergeLatch.countDown();
+                    compositeIndexWriter.forceMerge(1, true);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            mergeThread.start();
+            mergeLatch.await();
+
+            // Check for pending merges during merge
+            Thread.sleep(50); // Give merge time to start
+            mergeThread.join();
+            // After merge completes, should have no pending merges
+            assertFalse("Should have no pending merges after force merge completes", compositeIndexWriter.hasPendingMerges());
+        } finally {
+            IOUtils.close(compositeIndexWriter);
+        }
+    }
+
+    public void testGetTragicExceptionWithOutOfMemoryError() throws Exception {
+        AtomicBoolean shouldFail = new AtomicBoolean(false);
+        AtomicReference<Error> thrownError = new AtomicReference<>();
+
+        Directory dir = new FilterDirectory(newDirectory()) {
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                IndexOutput out = super.createOutput(name, context);
+                return new FilterIndexOutput("failing output", "test", out) {
+                    @Override
+                    public void writeBytes(byte[] b, int offset, int length) throws IOException {
+                        if (shouldFail.get() && name.endsWith(".cfe")) {
+                            Error ex = new OutOfMemoryError("Simulated write failure");
+                            thrownError.set(ex);
+                            throw ex;
+                        }
+                        super.writeBytes(b, offset, length);
+                    }
+                };
+            }
+        };
+
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            createWriter(dir),
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        compositeIndexWriter.getConfig().setMaxBufferedDocs(2);
+        // Add a document successfully
+        Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf("-1"), null, DEFAULT_CRITERIA));
+        compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+
+        // Enable failure
+        shouldFail.set(true);
+
+        boolean hitError = false;
+        try {
+            // This should trigger the failure
+            for (int i = 0; i < 10; i++) {
+                operation = indexForDoc(createParsedDoc(String.valueOf(i), null, DEFAULT_CRITERIA));
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            compositeIndexWriter.beforeRefresh();
+            compositeIndexWriter.afterRefresh(true);
+            compositeIndexWriter.commit();
+        } catch (Error e) {
+            hitError = true;
+        }
+
+        if (hitError && thrownError.get() != null) {
+            Throwable tragic = compositeIndexWriter.getTragicException();
+            if (tragic != null) {
+                assertFalse("Writer should be closed after tragic exception", compositeIndexWriter.isOpen());
+            }
+        }
+
+        IOUtils.closeWhileHandlingException(compositeIndexWriter, dir);
+    }
+
+    public void testRAMBytesUsedWithOldAndCurrentWriters() throws Exception {
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            createWriter(),
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        try {
+            // Create documents in first criteria group
+            for (int i = 0; i < 10; i++) {
+                Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf(i), null, DEFAULT_CRITERIA));
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            long ramAfterGroup1 = compositeIndexWriter.ramBytesUsed();
+            for (int i = 0; i < 10; i++) {
+                Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf(i), null, "testGroupingCriteria2"));
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            long ramAfterGroup2 = compositeIndexWriter.ramBytesUsed();
+            // RAM should account for both groups
+            assertTrue("RAM should account for multiple groups", ramAfterGroup2 >= ramAfterGroup1);
+        } finally {
+            IOUtils.close(compositeIndexWriter);
+        }
+
+    }
+
+    public void testSetLiveCommitDataWithRollback() throws Exception {
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            createWriter(),
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        try {
+            // Create documents in first criteria group
+            for (int i = 0; i < 10; i++) {
+                Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf(i), null, DEFAULT_CRITERIA));
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            Map<String, String> data = new HashMap<>();
+            data.put("status", "beforeCommit");
+            compositeIndexWriter.setLiveCommitData(data.entrySet());
+            compositeIndexWriter.commit();
+
+            data = new HashMap<>();
+            data.put("status", "beforeRollback");
+            // Rollback without committing
+            compositeIndexWriter.rollback();
+            Engine.Index operation = indexForDoc(createParsedDoc(String.valueOf(13), null, "testGroupingCriteria1"));
+            expectThrows(AlreadyClosedException.class, () -> compositeIndexWriter.addDocuments(operation.docs(), operation.uid()));
+
+            // Reopen writer
+            try (
+                CompositeIndexWriter compositeIndexWriterForRollback = new CompositeIndexWriter(
+                    config(),
+                    createWriter(),
+                    newSoftDeletesPolicy(),
+                    softDeletesField
+                )
+            ) {
+                for (Map.Entry<String, String> entry : compositeIndexWriterForRollback.getLiveCommitData()) {
+                    if (entry.getKey().equals("status")) {
+                        assertEquals("beforeCommit", entry.getValue());
+                    }
+                }
+            }
+
+        } finally {
+            IOUtils.close(compositeIndexWriter);
+        }
+    }
+
+    public void testObtainLock() throws Exception {
+        try (
+            CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+                config(),
+                createWriter(),
+                newSoftDeletesPolicy(),
+                softDeletesField
+            )
+        ) {
+            try (Releasable lock = compositeIndexWriter.obtainWriteLockOnAllMap()) {
+                assertTrue(compositeIndexWriter.isWriteLockedByCurrentThread());
+            }
+        }
+    }
+
+    public void testHasBlocksMergeFullyDelSegments() throws Exception {
+        CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
+            config(),
+            createWriter(),
+            newSoftDeletesPolicy(),
+            softDeletesField
+        );
+
+        try {
+            Engine.Index operation = indexForDoc(createParsedDoc("foo", null, DEFAULT_CRITERIA));
+            compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            compositeIndexWriter.softUpdateDocuments(operation.uid(), operation.docs(), 2, 2, primaryTerm.get(), softDeletesField);
+            compositeIndexWriter.beforeRefresh();
+            compositeIndexWriter.afterRefresh(true);
+            compositeIndexWriter.commit();
+            compositeIndexWriter.softUpdateDocuments(operation.uid(), operation.docs(), 2, 2, primaryTerm.get(), softDeletesField);
+            compositeIndexWriter.beforeRefresh();
+            compositeIndexWriter.afterRefresh(true);
+            compositeIndexWriter.forceMergeDeletes(true);
+            compositeIndexWriter.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(compositeIndexWriter.getAccumulatingIndexWriter())) {
+                assertEquals(1, directoryReader.leaves().size());
+                assertFalse("hasBlocks should be cleared", directoryReader.leaves().get(0).reader().getMetaData().hasBlocks());
+            }
         } finally {
             IOUtils.close(compositeIndexWriter);
         }

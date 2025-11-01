@@ -102,19 +102,17 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
     protected final AllocationId allocationId = AllocationId.newInitializing();
     protected final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
+    public static final String DEFAULT_CRITERIA = "testGroupingCriteria";
 
-    protected static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null);
-    }
-
-    protected static ParsedDocument testParsedDocument(
-        String id,
-        String routing,
-        ParseContext.Document document,
-        BytesReference source,
-        Mapping mappingUpdate
-    ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false);
+    protected static ParsedDocument createParsedDoc(String id, String routing, String groupingCriteria) {
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+            null,
+            groupingCriteria
+        );
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -123,7 +121,19 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
         ParseContext.Document document,
         BytesReference source,
         Mapping mappingUpdate,
-        boolean recoverySource
+        String groupingCriteria
+    ) {
+        return testParsedDocument(id, routing, document, source, mappingUpdate, false, groupingCriteria);
+    }
+
+    protected static ParsedDocument testParsedDocument(
+        String id,
+        String routing,
+        ParseContext.Document document,
+        BytesReference source,
+        Mapping mappingUpdate,
+        boolean recoverySource,
+        String groupingCriteria
     ) {
         Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
@@ -133,7 +143,7 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        document.setGroupingCriteria("testGrouping");
+        document.setGroupingCriteria(groupingCriteria);
         if (source != null) {
             BytesRef ref = source.toBytesRef();
             if (recoverySource) {
@@ -173,11 +183,12 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
     }
 
     protected IndexWriter createWriter() throws IOException {
+        return createWriter(store.directory());
+    }
+
+    protected IndexWriter createWriter(Directory directory) throws IOException {
         try {
-            return new IndexWriter(
-                store.directory(),
-                newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(true)
-            );
+            return new IndexWriter(directory, newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(true));
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
             throw ex;
@@ -333,7 +344,9 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
             final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
             for (int copy = 0; copy < copies; copy++) {
-                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
+                final ParsedDocument doc = isNestedDoc
+                    ? nestedParsedDocFactory.apply(id, nestedValues)
+                    : createParsedDoc(id, null, DEFAULT_CRITERIA);
                 switch (opType) {
                     case INDEX:
                         operations.add(
