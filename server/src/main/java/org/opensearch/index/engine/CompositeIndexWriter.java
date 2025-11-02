@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -110,10 +111,10 @@ import static org.opensearch.index.BucketedCompositeDirectory.CHILD_DIRECTORY_PR
  * by performing a partial soft delete (delete without indexing tombstone entry) on the
  * IndexWriters containing the previous version of the document.
  *
- * @see org.opensearch.index.engine.InternalEngine
- * @see org.apache.lucene.search.ReferenceManager.RefreshListener
- * @see org.opensearch.index.engine.LiveVersionMap
- * @see org.apache.lucene.index.IndexWriter
+ * @see InternalEngine
+ * @see ReferenceManager.RefreshListener
+ * @see LiveVersionMap
+ * @see IndexWriter
  */
 public class CompositeIndexWriter implements DocumentIndexWriter {
 
@@ -468,8 +469,9 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             ShardId shardId
         ) {
             boolean success = false;
+            CriteriaBasedIndexWriterLookup current = null;
             try {
-                CriteriaBasedIndexWriterLookup current = getCurrentMap();
+                current = getCurrentMap();
                 if (current == null || current.isClosed()) {
                     throw new LookupMapLockAcquisitionException(shardId, "Unable to obtain lock on the current Lookup map", null);
                 }
@@ -478,7 +480,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
                 success = true;
                 return writer;
             } finally {
-                if (success == false && current.mapReadLock.isHeldByCurrentThread() == true) {
+                if (success == false && current != null) {
+                    assert current.mapReadLock.isHeldByCurrentThread() == true;
                     current.mapReadLock.close();
                 }
             }
@@ -519,16 +522,16 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             // TODO Or should we do this in Reader before listner where we are syncing data??
             refreshDocumentsForParentDirectory(oldMap);
         } catch (Throwable ex) {
-            closed.set(true);
+            rollback();
             throw ex;
         }
     }
 
     private void refreshDocumentsForParentDirectory(CriteriaBasedIndexWriterLookup oldMap) throws IOException {
-        final Map<String, CompositeIndexWriter.DisposableIndexWriter> markForRefreshIndexWritersMap = oldMap.criteriaBasedIndexWriterMap;
+        final Map<String, DisposableIndexWriter> markForRefreshIndexWritersMap = oldMap.criteriaBasedIndexWriterMap;
         deletePreviousVersionsForUpdatedDocuments();
         final List<Directory> directoryToCombine = new ArrayList<>();
-        for (CompositeIndexWriter.DisposableIndexWriter childDisposableWriter : markForRefreshIndexWritersMap.values()) {
+        for (DisposableIndexWriter childDisposableWriter : markForRefreshIndexWritersMap.values()) {
             directoryToCombine.add(childDisposableWriter.getIndexWriter().getDirectory());
             childDisposableWriter.getIndexWriter().close();
         }
@@ -986,7 +989,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     ) throws IOException {
         ensureOpen();
         try (Releasable ignore1 = acquireLock(uid.bytes())) {
-            CompositeIndexWriter.DisposableIndexWriter currentDisposableWriter = getIndexWriterForIdFromCurrent(uid.bytes());
+            DisposableIndexWriter currentDisposableWriter = getIndexWriterForIdFromCurrent(uid.bytes());
             if (currentDisposableWriter != null) {
                 try (
                     CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()
@@ -997,7 +1000,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
                 }
             }
 
-            CompositeIndexWriter.DisposableIndexWriter oldDisposableWriter = getIndexWriterForIdFromOld(uid.bytes());
+            DisposableIndexWriter oldDisposableWriter = getIndexWriterForIdFromOld(uid.bytes());
             if (oldDisposableWriter != null) {
                 try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = oldDisposableWriter.getLookupMap().getMapReadLock()) {
                     if (oldDisposableWriter.getLookupMap().isClosed() == false && isStaleOperation == false) {
@@ -1029,7 +1032,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     }
 
     private String getGroupingCriteriaForDoc(final ParseContext.Document doc) {
-        return doc == null ? null : doc.getGroupingCriteria();
+//        return doc == null ? null : doc.getGroupingCriteria();
+        return "-1";
     }
 
     @Override
@@ -1049,11 +1053,11 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         accumulatingIndexWriter.forceMerge(maxNumSegments, doWait);
     }
 
-    CompositeIndexWriter.DisposableIndexWriter createChildWriterUtil(
+    DisposableIndexWriter createChildWriterUtil(
         String associatedCriteria,
-        CompositeIndexWriter.CriteriaBasedIndexWriterLookup lookup
+        CriteriaBasedIndexWriterLookup lookup
     ) throws IOException {
-        return new CompositeIndexWriter.DisposableIndexWriter(
+        return new DisposableIndexWriter(
             IndexWriterUtils.createWriter(
                 store.newTempDirectory(CHILD_DIRECTORY_PREFIX + associatedCriteria + "_" + UUID.randomUUID()),
                 new OpenSearchConcurrentMergeScheduler(

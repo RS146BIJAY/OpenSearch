@@ -47,6 +47,8 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -116,6 +118,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -330,6 +333,33 @@ public class InternalEngine extends Engine {
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             internalReaderManager.addListener(documentIndexWriter);
+            internalReaderManager.addListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() throws IOException {
+                    try(Searcher searcher = acquireSearcher("refresh", SearcherScope.INTERNAL)) {
+                        List<String> termsList = new ArrayList<>();
+                        for (LeafReaderContext readerContext: searcher.getDirectoryReader().leaves()) {
+                            Terms terms = readerContext.reader().terms("_id");
+                            if (terms != null) {
+                                TermsEnum termsEnum = terms.iterator();
+                                BytesRef term;
+                                while ((term = termsEnum.next()) != null) {
+                                    termsList.add(term.toString());
+                                }
+                            }
+                        }
+
+                        if (!termsList.isEmpty()) {
+                            System.out.println("Terms present for writer " + documentIndexWriter + " is " + Arrays.toString(termsList.toArray()));
+                        }
+                    }
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) throws IOException {
+
+                }
+            });
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
                 SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo())
             );
@@ -1003,6 +1033,8 @@ public class InternalEngine extends Engine {
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
+                System.out.println("After indexing with seqNo " + indexResult.getSeqNo() + " for id " + index.uid()
+                    + " documentwriter " + documentIndexWriter + " origin " + index.origin());
                 return indexResult;
             } finally {
                 releaseInFlightDocs(reservedDocs);
@@ -1624,6 +1656,9 @@ public class InternalEngine extends Engine {
                 delete.primaryTerm(),
                 softDeletesField
             );
+
+            System.out.println("Deleting document for seqno " + delete.seqNo() + " for id " + delete.uid() + " writer "
+                + documentIndexWriter + " with origin " + delete.origin());
             return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (final Exception ex) {
             /*
@@ -2623,6 +2658,9 @@ public class InternalEngine extends Engine {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
+
+                System.out.println("Commiting writer local checkpoint " + localCheckpoint + " max seq no "
+                    + localCheckpointTracker.getMaxSeqNo() + " writer " + documentIndexWriter);
                 return commitData.entrySet().iterator();
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);

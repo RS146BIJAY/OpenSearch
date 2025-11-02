@@ -299,6 +299,13 @@ public class OpenSearchAssertions {
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        List<String> term = new ArrayList<>();
+        SearchHit[] hits = countResponse.getHits().getHits();
+        for (SearchHit hit : hits) {
+            term.add(hit.getId());
+        }
+
+        System.out.println("All terms " + Arrays.toString(term.toArray()));
         if (totalHits.relation() != TotalHits.Relation.EQUAL_TO || totalHits.value() != expectedHitCount) {
             fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }

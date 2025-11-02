@@ -658,11 +658,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         Settings.Builder builder = Settings.builder();
         int numberOfShards = numberOfShards();
         if (numberOfShards > 0) {
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            builder.put(SETTING_NUMBER_OF_SHARDS, 1).build();
         }
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            builder.put(SETTING_NUMBER_OF_REPLICAS, 0).build();
         }
         // 30% of the time
         if (randomInt(9) < 3) {

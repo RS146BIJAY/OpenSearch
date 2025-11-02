@@ -457,7 +457,7 @@ public final class IndexSettings {
      */
     public static final Setting<Boolean> INDEX_CONTEXT_AWARE_ENABLED_SETTING = Setting.boolSetting(
         "index.context_aware.enabled",
-        false,
+        true,
         value -> {
             if (FeatureFlags.isEnabled(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG) == false && value == true) {
                 throw new IllegalArgumentException(

@@ -87,6 +87,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
         if (isSequenceNumberBasedRecovery) {
             logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
+            System.out.println("performing sequence numbers based recovery. starting at " + request.startingSeqNo());
             startingSeqNo = request.startingSeqNo();
             if (retentionLeaseRef.get() == null) {
                 createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, ignored -> SendFileResult.EMPTY));
@@ -114,6 +115,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
             // down.
             startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
             logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
+            System.out.println("performing file-based recovery followed by history replay starting at " + startingSeqNo);
 
             try {
                 final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);

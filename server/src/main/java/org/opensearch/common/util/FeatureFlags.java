@@ -76,7 +76,7 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG,
-        false,
+        true,
         Property.NodeScope
     );
 
