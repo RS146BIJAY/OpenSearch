@@ -42,8 +42,10 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ThirdParty;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Base class for AWS tests that require credentials.
@@ -81,6 +83,8 @@ public abstract class AbstractAwsTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(Ec2DiscoveryPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        assert plugins.size() == 1;
+        return Arrays.asList(Ec2DiscoveryPlugin.class, plugins.get(0));
     }
 }

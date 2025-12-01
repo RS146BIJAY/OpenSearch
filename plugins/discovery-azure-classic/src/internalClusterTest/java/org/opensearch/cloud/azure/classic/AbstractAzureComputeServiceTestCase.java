@@ -55,6 +55,7 @@ import org.opensearch.transport.TransportService;
 import org.junit.After;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -90,7 +91,9 @@ public abstract class AbstractAzureComputeServiceTestCase extends OpenSearchInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        assert plugins.size() == 1;
+        return Arrays.asList(TestPlugin.class, plugins.get(0));
     }
 
     /**

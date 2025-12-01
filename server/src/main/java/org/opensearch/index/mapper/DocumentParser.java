@@ -139,6 +139,8 @@ final class DocumentParser {
             parser.skipChildren();
         } else if (emptyDoc == false) {
             parseObjectOrNested(context, mapping.root);
+        } else if (emptyDoc == true) {
+            generateGroupingCriteria(context);
         }
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {

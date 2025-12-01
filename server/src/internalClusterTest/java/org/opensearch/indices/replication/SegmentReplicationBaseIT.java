@@ -45,6 +45,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -66,7 +67,9 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return asList(MockTransportService.TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        assert plugins.size() == 1;
+        return asList(MockTransportService.TestPlugin.class, plugins.get(0));
     }
 
     @Override

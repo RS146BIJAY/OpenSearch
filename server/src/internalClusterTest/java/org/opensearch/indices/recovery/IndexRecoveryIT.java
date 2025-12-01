@@ -185,12 +185,16 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        assert plugins.size() == 1;
+
         return Arrays.asList(
             MockTransportService.TestPlugin.class,
             MockFSIndexStore.TestPlugin.class,
             TestAnalysisPlugin.class,
             InternalSettingsPlugin.class,
-            MockEngineFactoryPlugin.class
+            MockEngineFactoryPlugin.class,
+            plugins.get(0)
         );
     }
 

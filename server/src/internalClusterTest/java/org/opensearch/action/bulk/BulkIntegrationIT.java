@@ -54,9 +54,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -77,7 +79,9 @@ import static org.hamcrest.Matchers.oneOf;
 public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestTestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        assert plugins.size() == 1;
+        return Arrays.asList(IngestTestPlugin.class, plugins.get(0));
     }
 
     public void testBulkIndexCreatesMapping() throws Exception {

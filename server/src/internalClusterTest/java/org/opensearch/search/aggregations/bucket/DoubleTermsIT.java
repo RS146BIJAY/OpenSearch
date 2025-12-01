@@ -94,7 +94,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, ContextAwareCustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {

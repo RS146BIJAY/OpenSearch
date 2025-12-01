@@ -74,7 +74,7 @@ public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegT
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ScriptedTimeoutPlugin.class);
+        return Arrays.asList(ScriptedTimeoutPlugin.class, ContextAwareCustomScriptPlugin.class);
     }
 
     @Override

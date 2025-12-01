@@ -1643,6 +1643,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                     .field("type", "keyword")
                     .endObject()
                     .endObject()
+                    .startObject("context_aware_grouping")
+                    .array("fields", "tempId")
+                    .startObject("script")
+                    .field("source", "String.valueOf(-1)")
+                    .endObject()
+                    .endObject()
                     .endObject()
             )
         );
@@ -1896,6 +1902,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .field("analyzer", "tv_test")
             .endObject()
             .endObject()
+            .startObject("context_aware_grouping")
+            .array("fields", "tempId")
+            .startObject("script")
+            .field("source", "String.valueOf(-1)")
+            .endObject()
+            .endObject()
             .endObject();
         // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime termvectors
         assertAcked(
@@ -1971,6 +1983,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .field("type", "text")
             .field("term_vector", "with_positions_offsets_payloads")
             .field("analyzer", "tv_test")
+            .endObject()
+            .endObject()
+            .startObject("context_aware_grouping")
+            .array("fields", "tempId")
+            .startObject("script")
+            .field("source", "String.valueOf(-1)")
             .endObject()
             .endObject()
             .endObject();

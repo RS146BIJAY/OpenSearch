@@ -174,7 +174,11 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         @Override
         @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            Map<String, Function<Map<String, Object>, Object>> pluginScripts = new HashMap<>();
+            pluginScripts.put("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            pluginScripts.put("String.valueOf(-1)", vars -> "-1");
+
+            return pluginScripts;
         }
     }
 

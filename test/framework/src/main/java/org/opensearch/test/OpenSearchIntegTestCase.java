@@ -155,11 +155,16 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.MockScriptService;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
@@ -692,6 +697,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             builder.put(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING.getKey(), randomDoubleBetween(0.01, 0.50, true));
         }
 
+        builder.put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true);
+
         return builder.build();
     }
 
@@ -762,7 +769,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * creates an index with the given setting
      */
     public final void createIndex(String name, Settings indexSettings) {
-        assertAcked(prepareCreate(name).setSettings(indexSettings));
+        String mapping = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\" } }}";
+        assertAcked(prepareCreate(name).setSettings(indexSettings).setMapping(mapping));
     }
 
     /**
@@ -776,7 +784,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * creates an index with the given setting
      */
     public final void createIndex(String name, Context context) {
-        assertAcked(prepareCreate(name).setContext(context));
+        String mapping = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\" } }}";
+        assertAcked(prepareCreate(name).setContext(context).setMapping(mapping));
     }
 
     /**
@@ -817,13 +826,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * </p>
      */
     public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, Settings.Builder settingsBuilder) {
+        String mapping = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\"} }}";
         Settings.Builder builder = Settings.builder().put(indexSettings()).put(settingsBuilder.build());
 
         if (numNodes > 0) {
             internalCluster().ensureAtLeastNumDataNodes(numNodes);
             getExcludeSettings(numNodes, builder);
         }
-        return client().admin().indices().prepareCreate(index).setSettings(builder.build());
+        return client().admin().indices().prepareCreate(index).setSettings(builder.build()).setMapping(mapping);
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
@@ -2003,7 +2013,39 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns a collection of plugins that should be loaded on each node.
      */
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.emptyList();
+        return Collections.singletonList(ContextAwareCustomScriptPlugin.class);
+//        return Collections.emptyList();
+    }
+
+    public static class ContextAwareCustomScriptPlugin extends Plugin implements ScriptPlugin {
+
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> pluginScripts = new HashMap<>();
+            pluginScripts.put("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            pluginScripts.put("String.valueOf(-1)", vars -> "-1");
+
+            return pluginScripts;
+        }
+
+        public static final String NAME = "painless";
+
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new MockScriptEngine(pluginScriptLang(), pluginScripts(), nonDeterministicPluginScripts(), pluginContextCompilers());
+        }
+
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            return Collections.emptyMap();
+        }
+
+        protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
+            return Collections.emptyMap();
+        }
+
+        public String pluginScriptLang() {
+            return NAME;
+        }
     }
 
     /**

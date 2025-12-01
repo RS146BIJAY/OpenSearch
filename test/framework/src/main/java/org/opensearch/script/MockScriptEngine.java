@@ -78,7 +78,7 @@ public class MockScriptEngine implements ScriptEngine {
         Object compile(Function<Map<String, Object>, Object> script, Map<String, String> params);
     }
 
-    public static final String NAME = "mockscript";
+    public static final String NAME = "mockEngine";
 
     private final String type;
     private final Map<String, MockDeterministicScript> scripts;

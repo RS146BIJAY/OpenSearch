@@ -73,7 +73,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return asList(MockTransportService.TestPlugin.class);
+        return asList(MockTransportService.TestPlugin.class, ContextAwareCustomScriptPlugin.class);
     }
 
     public void testWritesRejected() throws Exception {
