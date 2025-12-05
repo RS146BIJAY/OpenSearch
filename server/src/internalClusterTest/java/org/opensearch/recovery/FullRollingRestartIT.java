@@ -557,6 +557,12 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
                 "version": {
                   "type": "long"
                 }
+              },
+              "context_aware_grouping": {
+                "fields": ["tempId"],
+                "script": {
+                    "source": "String.valueOf(-1)"
+                }
               }
             }""";
 
