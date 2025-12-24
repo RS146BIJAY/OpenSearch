@@ -141,6 +141,7 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         }
     }
 
+    //EP
     public void testUpdateWithDocumentInParentIndexWriter() throws IOException {
         final String id = "test";
         CompositeIndexWriter compositeIndexWriter = null;
@@ -177,6 +178,7 @@ public class CompositeIndexWriterForUpdateAndDeletesTests extends CriteriaBasedC
         }
     }
 
+    //UEE
     public void testUpdateWithDocumentInChildIndexWriter() throws IOException {
         final String id = "test";
         CompositeIndexWriter compositeIndexWriter = null;

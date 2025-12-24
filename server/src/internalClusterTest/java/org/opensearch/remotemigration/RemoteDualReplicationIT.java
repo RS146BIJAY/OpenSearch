@@ -8,6 +8,33 @@
 
 package org.opensearch.remotemigration;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.ClusterState;
@@ -16,12 +43,21 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.engine.CombinedDocValues;
+import org.opensearch.index.engine.MissingHistoryOperationsException;
+import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
@@ -30,9 +66,16 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -666,6 +709,221 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         });
     }
 
+    public void testValidate() throws Exception {
+        // For RemoteDualReplicationIT_79B8DB1F187B42C1-001
+        // t1: Term list is size 114 doc count 315
+        // t3: Term list is size 113 doc count 111
+        // t4: Term list is size 113 doc count 111
+
+        // For RemoteDualReplicationIT_A19B9881B3958250-001
+        // t2: Term list is size 126 doc count 369
+        // t3: Term list is size 130 doc count 129
+        // t4: Term list is size 130 doc count 129 terms
+
+        // t4: Term list is size 122 doc count 120 terms
+        // t2: Term list is size 122 doc count 336 terms
+
+        String indexPath = "/Users/rissag/OpenSearch/OpenSearch/server/build/testrun/internalClusterTest/temp/org.opensearch.remotemigration.RemoteDualReplicationIT_EA1E400C5C826EDF-001/tempDir-002/node_t2/nodes/0/indices/wQs32FXwSv-aCV_iaWEmUw/0/index";
+        Directory directory = FSDirectory.open(Paths.get(indexPath));
+
+        List<String> termsList = new ArrayList<>();
+        int docCount = 0;
+        try (DirectoryReader directoryReader = DirectoryReader.open(directory);) {
+            for (LeafReaderContext ctx : directoryReader.leaves()) {
+                TermsEnum iterator = ctx.reader().terms("_id").iterator();
+                BytesRef term;
+                AtomicReference<TermsEnum> termsEnum = new AtomicReference<>(iterator);
+                AtomicReference<PostingsEnum> docEnum = new AtomicReference<>(null);
+                while ((term = iterator.next()) != null) {
+                    termsList.add(term.toString());
+                }
+
+                docCount += ctx.reader().numDocs();
+            }
+
+            System.out.println("Term list is size " + termsList.size() + " doc count " + docCount + " terms " + Arrays.toString(termsList.toArray()));
+        }
+    }
+
+    public void testValidateActualDocs() throws Exception {
+        String indexPath = "/Users/rissag/OpenSearch/OpenSearch/server/build/testrun/internalClusterTest/temp/org.opensearch.remotemigration.RemoteDualReplicationIT_EA1E400C5C826EDF-001/tempDir-002/node_t3/nodes/0/indices/wQs32FXwSv-aCV_iaWEmUw/0/index";
+        Directory directory = FSDirectory.open(Paths.get(indexPath));
+        try (DirectoryReader directoryReader = Lucene.wrapAllDocsLive(DirectoryReader.open(directory))) {
+            IndexSearcher searcher = new IndexSearcher(directoryReader);
+            final TopDocs topDocs = searchOperations(null, true, searcher);
+            ParallelArray parallelArray = new ParallelArray(1024);
+            fillParallelArray(topDocs.scoreDocs, parallelArray, searcher);
+            int i = 0;
+            AtomicLong lastSeqNo = new AtomicLong(Integer.MIN_VALUE);
+            int skippedNo = 0;
+            while (i < topDocs.scoreDocs.length) {
+                Translog.Operation op = readDocAsOp(i, parallelArray, topDocs.scoreDocs, lastSeqNo);
+                ++i;
+                if (op != null) {
+                    lastSeqNo.set(op.seqNo());
+                    System.out.println(op);
+                } else {
+                    ++skippedNo;
+                }
+            }
+
+            System.out.println("Skipped no " + skippedNo);
+        }
+    }
+
+    private TopDocs searchOperations(FieldDoc after, boolean accurate, IndexSearcher indexSearcher) throws IOException {
+        final Query rangeQuery = operationsRangeQuery(0, Integer.MAX_VALUE);
+        final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
+        final TopFieldCollector topFieldCollector = new TopFieldCollectorManager(
+            sortedBySeqNo,
+            1024,
+            after,
+            accurate ? Integer.MAX_VALUE : 0,
+            false
+        ).newCollector();
+        indexSearcher.search(rangeQuery, topFieldCollector);
+        return topFieldCollector.topDocs();
+    }
+
+    public static Query operationsRangeQuery(long fromSeqNo, long toSeqNo) {
+        return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested docs
+            .build();
+    }
+
+    private Translog.Operation readDocAsOp(int docIndex, ParallelArray parallelArray, ScoreDoc[] scoreDocs, AtomicLong lastSeenSeqNo) throws IOException {
+        final LeafReaderContext leaf = parallelArray.leafReaderContexts[docIndex];
+        final int segmentDocID = scoreDocs[docIndex].doc - leaf.docBase;
+        final long primaryTerm = parallelArray.primaryTerm[docIndex];
+        assert primaryTerm > 0 : "nested child document must be excluded";
+        final long seqNo = parallelArray.seqNo[docIndex];
+        // Only pick the first seen seq#
+        if (seqNo == lastSeenSeqNo.get()) {
+            return null;
+        }
+        final long version = parallelArray.version[docIndex];
+        final String sourceField = parallelArray.hasRecoverySource[docIndex]
+            ? SourceFieldMapper.RECOVERY_SOURCE_NAME
+            : SourceFieldMapper.NAME;
+        final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
+        leaf.reader().storedFields().document(segmentDocID, fields);
+
+        final Translog.Operation op;
+        final boolean isTombstone = parallelArray.isTombStone[docIndex];
+        if (isTombstone && fields.id() == null) {
+            op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
+            assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
+        } else {
+            final String id = fields.id();
+            if (isTombstone) {
+                op = new Translog.Delete(id, seqNo, primaryTerm, version);
+            } else {
+                final BytesReference source = fields.source();
+                if (source == null) {
+                    // TODO: Callers should ask for the range that source should be retained. Thus we should always
+                    // check for the existence source once we make peer-recovery to send ops after the local checkpoint.
+                    return null;
+                }
+                // TODO: pass the latest timestamp from engine.
+                final long autoGeneratedIdTimestamp = -1;
+                op = new Translog.Index(
+                    id,
+                    seqNo,
+                    primaryTerm,
+                    version,
+                    source.toBytesRef().bytes,
+                    fields.routing(),
+                    autoGeneratedIdTimestamp
+                );
+            }
+        }
+
+        return op;
+    }
+
+    private static final class ParallelArray {
+        final LeafReaderContext[] leafReaderContexts;
+        final long[] version;
+        final long[] seqNo;
+        final long[] primaryTerm;
+        final boolean[] isTombStone;
+        final boolean[] hasRecoverySource;
+
+        ParallelArray(int size) {
+            version = new long[size];
+            seqNo = new long[size];
+            primaryTerm = new long[size];
+            isTombStone = new boolean[size];
+            hasRecoverySource = new boolean[size];
+            leafReaderContexts = new LeafReaderContext[size];
+        }
+    }
+
+    private void fillParallelArray(ScoreDoc[] scoreDocs, ParallelArray parallelArray, IndexSearcher indexSearcher) throws IOException {
+        if (scoreDocs.length > 0) {
+            for (int i = 0; i < scoreDocs.length; i++) {
+                scoreDocs[i].shardIndex = i;
+            }
+            // for better loading performance we sort the array by docID and
+            // then visit all leaves in order.
+            ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.doc));
+            int docBase = -1;
+            int maxDoc = 0;
+            List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+            int readerIndex = 0;
+            CombinedDocValues combinedDocValues = null;
+            LeafReaderContext leaf = null;
+            for (ScoreDoc scoreDoc : scoreDocs) {
+                if (scoreDoc.doc >= docBase + maxDoc) {
+                    do {
+                        leaf = leaves.get(readerIndex++);
+                        docBase = leaf.docBase;
+                        maxDoc = leaf.reader().maxDoc();
+                    } while (scoreDoc.doc >= docBase + maxDoc);
+                    combinedDocValues = new CombinedDocValues(leaf.reader());
+                }
+                final int segmentDocID = scoreDoc.doc - docBase;
+                final int index = scoreDoc.shardIndex;
+                parallelArray.leafReaderContexts[index] = leaf;
+                parallelArray.seqNo[index] = combinedDocValues.docSeqNo(segmentDocID);
+                parallelArray.primaryTerm[index] = combinedDocValues.docPrimaryTerm(segmentDocID);
+                parallelArray.version[index] = combinedDocValues.docVersion(segmentDocID);
+                parallelArray.isTombStone[index] = combinedDocValues.isTombstone(segmentDocID);
+                parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
+            }
+            // now sort back based on the shardIndex. we use this to store the previous index
+            ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.shardIndex));
+        }
+    }
+
+    private int getDocID(BytesRef id, LeafReaderContext context, AtomicReference<TermsEnum> termsEnum, AtomicReference<PostingsEnum> docsEnum) throws IOException {
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
+        if (termsEnum.get() != null && termsEnum.get().seekExact(id)) {
+            final Bits liveDocs = context.reader().getLiveDocs();
+            int docID = DocIdSetIterator.NO_MORE_DOCS;
+            // there may be more than one matching docID, in the case of nested docs, so we want the last one:
+            docsEnum.set(termsEnum.get().postings(docsEnum.get(), 0));
+            for (int d = docsEnum.get().nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.get().nextDoc()) {
+                if (liveDocs != null && liveDocs.get(d) == false) {
+                    continue;
+                }
+                docID = d;
+            }
+            return docID;
+        } else {
+            return DocIdSetIterator.NO_MORE_DOCS;
+        }
+    }
+
+    private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {
+        final NumericDocValues dv = reader.getNumericDocValues(field);
+        if (dv == null || dv.advanceExact(docId) == false) {
+            assert false : "document [" + docId + "] does not have docValues for [" + field + "]";
+            throw new IllegalStateException("document [" + docId + "] does not have docValues for [" + field + "]");
+        }
+        return dv.longValue();
+    }
+
     /*
     Performs the same experiment as testRemotePrimaryDocRepReplica.
 
@@ -704,42 +962,57 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     }
 
     private void assertReplicaAndPrimaryConsistency(String indexName, int firstBatch, int secondBatch) throws Exception {
-        assertBusy(() -> {
-            Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
-                .admin()
-                .indices()
-                .prepareStats(indexName)
-                .setDocs(true)
-                .get()
-                .asMap();
-            DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
-            for (ShardRouting shardRouting : shardStatsMap.keySet()) {
-                CommonStats shardStats = shardStatsMap.get(shardRouting).getStats();
-                if (shardRouting.primary()) {
-                    assertEquals(firstBatch + secondBatch, shardStats.getDocs().getCount());
-                    assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
-                    RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
-                    assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
-                    assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
-                }
-                if (shardRouting.unassigned() == false && shardRouting.primary() == false) {
-                    boolean remoteNode = nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode();
-                    assertEquals(
-                        "Mismatched doc count. Is this on remote node ? " + remoteNode,
-                        firstBatch + secondBatch,
-                        shardStats.getDocs().getCount()
-                    );
-                    RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
-                    if (remoteNode) {
-                        assertTrue(remoteSegmentStats.getDownloadBytesStarted() > 0);
-                        assertTrue(remoteSegmentStats.getTotalDownloadTime() > 0);
-                    } else {
-                        assertEquals(0, remoteSegmentStats.getUploadBytesSucceeded());
-                        assertEquals(0, remoteSegmentStats.getTotalUploadTime());
+        try {
+            assertBusy(() -> {
+                refresh(FAILOVER_REMOTE_TO_REMOTE);
+                Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
+                    .admin()
+                    .indices()
+                    .prepareStats(indexName)
+                    .setDocs(true)
+                    .get()
+                    .asMap();
+                DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+                for (ShardRouting shardRouting : shardStatsMap.keySet()) {
+                    CommonStats shardStats = shardStatsMap.get(shardRouting).getStats();
+                    if (shardRouting.primary()) {
+                        assertEquals(firstBatch + secondBatch, shardStats.getDocs().getCount());
+                        assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                        RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
+                        assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
+                        assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
+                    }
+                    if (shardRouting.unassigned() == false && shardRouting.primary() == false) {
+                        boolean remoteNode = nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode();
+                        assertEquals(
+                            "Mismatched doc count. Is this on remote node ? " + remoteNode,
+                            firstBatch + secondBatch,
+                            shardStats.getDocs().getCount()
+                        );
+                        RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
+                        if (remoteNode) {
+                            assertTrue(remoteSegmentStats.getDownloadBytesStarted() > 0);
+                            assertTrue(remoteSegmentStats.getTotalDownloadTime() > 0);
+                        } else {
+                            assertEquals(0, remoteSegmentStats.getUploadBytesSucceeded());
+                            assertEquals(0, remoteSegmentStats.getTotalUploadTime());
+                        }
                     }
                 }
+            });
+        } catch (Error| Exception e) {
+            client().admin().indices().prepareFlush().setForce(true).execute().actionGet();
+            AtomicLong co = new AtomicLong();
+            while (true && co.get() >= 0) {
+                if (co.get() <= 2) {
+                    System.out.println("Start Debugging");
+                    co.incrementAndGet();
+                }
             }
-        });
+
+            throw e;
+        }
+
     }
 
     /**

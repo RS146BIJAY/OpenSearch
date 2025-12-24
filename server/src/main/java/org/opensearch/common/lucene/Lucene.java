@@ -895,7 +895,7 @@ public class Lucene {
         return new DirectoryReaderWithAllLiveDocs(in);
     }
 
-    private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
+    public static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
         static final class LeafReaderWithLiveDocs extends FilterLeafReader {
             final Bits liveDocs;
             final int numDocs;

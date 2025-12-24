@@ -1562,7 +1562,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
         @Override
         public String toString() {
-            return "Delete{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version + '}';
+            return "Delete{" + "id=" + id + ", seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version + '}';
         }
     }
 

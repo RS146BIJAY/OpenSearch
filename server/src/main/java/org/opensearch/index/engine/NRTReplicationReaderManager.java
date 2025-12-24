@@ -17,6 +17,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 
@@ -113,6 +116,18 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         infos.updateGeneration(currentInfos);
         currentInfos = infos;
         maybeRefresh();
+//        List<String> termsList = new ArrayList<>();
+//        try (OpenSearchDirectoryReader directoryReader = acquire()) {
+//            for (LeafReaderContext ctx : directoryReader.leaves()) {
+//                TermsEnum iterator = ctx.reader().terms("_id").iterator();
+//                BytesRef term;
+//                while ((term = iterator.next()) != null) {
+//                    termsList.add(term.toString());
+//                }
+//            }
+//
+//            System.out.println("Term list is size " + termsList.size());
+//        }
     }
 
     public SegmentInfos getSegmentInfos() {

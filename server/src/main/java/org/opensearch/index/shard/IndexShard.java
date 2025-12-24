@@ -1521,7 +1521,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DocsStats docStats() {
         readAllowed();
-        return getEngine().docStats();
+        DocsStats docsStats = getEngine().docStats();
+        System.out.println("DocStats count for engine " + getEngine() + " is " + docsStats.getCount() + " path: " + getEngine().getPath());
+        return docsStats;
     }
 
     /**

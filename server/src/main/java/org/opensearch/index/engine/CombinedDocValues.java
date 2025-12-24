@@ -46,14 +46,14 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-final class CombinedDocValues {
+public final class CombinedDocValues {
     private final NumericDocValues versionDV;
     private final NumericDocValues seqNoDV;
     private final NumericDocValues primaryTermDV;
     private final NumericDocValues tombstoneDV;
     private final NumericDocValues recoverySource;
 
-    CombinedDocValues(LeafReader leafReader) throws IOException {
+    public CombinedDocValues(LeafReader leafReader) throws IOException {
         this.versionDV = Objects.requireNonNull(leafReader.getNumericDocValues(VersionFieldMapper.NAME), "VersionDV is missing");
         this.seqNoDV = Objects.requireNonNull(leafReader.getNumericDocValues(SeqNoFieldMapper.NAME), "SeqNoDV is missing");
         this.primaryTermDV = Objects.requireNonNull(
@@ -64,7 +64,7 @@ final class CombinedDocValues {
         this.recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
     }
 
-    long docVersion(int segmentDocId) throws IOException {
+    public long docVersion(int segmentDocId) throws IOException {
         assert versionDV.docID() < segmentDocId;
         if (versionDV.advanceExact(segmentDocId) == false) {
             assert false : "DocValues for field [" + VersionFieldMapper.NAME + "] is not found";
@@ -73,7 +73,7 @@ final class CombinedDocValues {
         return versionDV.longValue();
     }
 
-    long docSeqNo(int segmentDocId) throws IOException {
+    public long docSeqNo(int segmentDocId) throws IOException {
         assert seqNoDV.docID() < segmentDocId;
         if (seqNoDV.advanceExact(segmentDocId) == false) {
             assert false : "DocValues for field [" + SeqNoFieldMapper.NAME + "] is not found";
@@ -82,7 +82,7 @@ final class CombinedDocValues {
         return seqNoDV.longValue();
     }
 
-    long docPrimaryTerm(int segmentDocId) throws IOException {
+    public long docPrimaryTerm(int segmentDocId) throws IOException {
         // We exclude non-root nested documents when querying changes, every returned document must have primary term.
         assert primaryTermDV.docID() < segmentDocId;
         if (primaryTermDV.advanceExact(segmentDocId) == false) {
@@ -92,7 +92,7 @@ final class CombinedDocValues {
         return primaryTermDV.longValue();
     }
 
-    boolean isTombstone(int segmentDocId) throws IOException {
+    public boolean isTombstone(int segmentDocId) throws IOException {
         if (tombstoneDV == null) {
             return false;
         }
@@ -100,7 +100,7 @@ final class CombinedDocValues {
         return tombstoneDV.advanceExact(segmentDocId) && tombstoneDV.longValue() > 0;
     }
 
-    boolean hasRecoverySource(int segmentDocId) throws IOException {
+    public boolean hasRecoverySource(int segmentDocId) throws IOException {
         if (recoverySource == null) {
             return false;
         }

@@ -247,7 +247,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         }
     }
 
-    private static Query operationsRangeQuery(long fromSeqNo, long toSeqNo) {
+    public static Query operationsRangeQuery(long fromSeqNo, long toSeqNo) {
         return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested docs
             .build();

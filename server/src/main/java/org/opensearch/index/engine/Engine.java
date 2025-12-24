@@ -1278,6 +1278,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
         });
     }
 
+    public String getPath() {
+        return store.shardPath().getDataPath().toString();
+    }
+
     /**
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption

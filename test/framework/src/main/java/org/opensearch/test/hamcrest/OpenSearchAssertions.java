@@ -87,6 +87,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -300,6 +301,24 @@ public class OpenSearchAssertions {
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (totalHits.relation() != TotalHits.Relation.EQUAL_TO || totalHits.value() != expectedHitCount) {
+            fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+        }
+    }
+
+    public static void assertHitCount(SearchResponse countResponse, long expectedHitCount, Runnable action) {
+        final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        if (totalHits.relation() != TotalHits.Relation.EQUAL_TO || totalHits.value() != expectedHitCount) {
+            action.run();
+            AtomicLong co = new AtomicLong();
+            while (true && co.get() >= 0) {
+                if (co.get() <= 2) {
+                    System.out.println("Start Debugging "
+                        + "Count is " + totalHits + " but " + expectedHitCount + " was expected. "
+                        + formatShardStatus(countResponse));
+                    co.incrementAndGet();
+                }
+            }
+
             fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
     }

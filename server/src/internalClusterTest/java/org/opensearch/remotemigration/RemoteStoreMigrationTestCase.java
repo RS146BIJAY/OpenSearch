@@ -202,14 +202,16 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
         waitForReplication("test");
         OpenSearchAssertions.assertHitCount(
             client().prepareSearch("test").setTrackTotalHits(true).get(),
-            asyncIndexingService.getIndexedDocs()
+            asyncIndexingService.getIndexedDocs(),
+            () -> client().admin().indices().prepareFlush().setForce(true).execute().actionGet()
         );
         OpenSearchAssertions.assertHitCount(
             client().prepareSearch("test")
                 .setTrackTotalHits(true)// extra paranoia ;)
                 .setQuery(QueryBuilders.termQuery("auto", true))
                 .get(),
-            asyncIndexingService.getIndexedDocs()
+            asyncIndexingService.getIndexedDocs(),
+            () -> client().admin().indices().prepareFlush().setForce(true).execute().actionGet()
         );
     }
 
