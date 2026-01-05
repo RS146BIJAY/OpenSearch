@@ -36,6 +36,10 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
@@ -137,6 +141,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -155,11 +160,15 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
+import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptService;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
@@ -184,6 +193,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.lang.Runtime.Version;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
@@ -224,9 +234,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
+import static org.opensearch.index.IndexSettings.*;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -414,6 +422,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private ReplicationType randomReplicationType;
 
     private String randomStorageType;
+
+    private final String DEFAULT_CONTEXT_AWARE_MAPPING = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\" } }}";
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -692,6 +702,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             builder.put(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING.getKey(), randomDoubleBetween(0.01, 0.50, true));
         }
 
+        builder.put(INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true);
         return builder.build();
     }
 
@@ -769,7 +780,122 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * creates an index with the given setting and mapping
      */
     public final void createIndex(String name, Settings indexSettings, String mapping) {
+        if (indexSettings.getAsBoolean(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false) == true) {
+            try {
+                mapping = addGroupingCriteriaField(mapping);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         assertAcked(prepareCreate(name).setSettings(indexSettings).setMapping(mapping));
+    }
+
+    private String addGroupingCriteriaField(String mapping) throws IOException {
+        JsonFactory factory = new JsonFactory();
+        StringWriter writer = new StringWriter();
+        try (JsonParser parser = factory.createParser(mapping);
+             JsonGenerator generator = factory.createGenerator(writer)) {
+            int objectDepth = 0;
+            boolean isRootObject = false;
+            boolean insideProperties = false;
+            int propertiesDepth = 0;
+            String criteriaFieldName = "";
+            while (parser.nextToken() != null) {
+                JsonToken token = parser.currentToken();
+
+                switch (token) {
+                    case START_OBJECT:
+                        generator.writeStartObject();
+                        objectDepth++;
+                        propertiesDepth++;
+                        if (objectDepth == 1) {
+                            isRootObject = true;
+                        }
+                        break;
+
+                    case END_OBJECT:
+                        // Add new properties before closing root object
+                        if (objectDepth == 1 && isRootObject) {
+                            addNewProperties(generator, criteriaFieldName);
+                        }
+                        generator.writeEndObject();
+                        objectDepth--;
+                        propertiesDepth--;
+                        break;
+
+                    case START_ARRAY:
+                        generator.writeStartArray();
+                        break;
+
+                    case END_ARRAY:
+                        generator.writeEndArray();
+                        break;
+
+                    case FIELD_NAME:
+                        generator.writeFieldName(parser.getCurrentName());
+                        String currentFieldName = parser.getCurrentName();
+                        if (currentFieldName.equals("properties")) {
+                            insideProperties = true;
+                            propertiesDepth = 0;
+                        } else  if (insideProperties && propertiesDepth == 1) {
+                            criteriaFieldName = currentFieldName;
+                        }
+                        break;
+
+                    case VALUE_STRING:
+                        generator.writeString(parser.getValueAsString());
+                        break;
+
+                    case VALUE_NUMBER_INT:
+                        generator.writeNumber(parser.getLongValue());
+                        break;
+
+                    case VALUE_NUMBER_FLOAT:
+                        generator.writeNumber(parser.getDoubleValue());
+                        break;
+
+                    case VALUE_TRUE:
+                        generator.writeBoolean(true);
+                        break;
+
+                    case VALUE_FALSE:
+                        generator.writeBoolean(false);
+                        break;
+
+                    case VALUE_NULL:
+                        generator.writeNull();
+                        break;
+
+                    case VALUE_EMBEDDED_OBJECT:
+                        generator.writeObject(parser.getEmbeddedObject());
+                        break;
+
+                    case NOT_AVAILABLE:
+                        // Non-blocking parser token - usually ignored
+                        break;
+
+                    default:
+                        throw new IllegalStateException("Unknown token: " + token);
+                }
+            }
+        }
+
+        return writer.toString();
+    }
+
+    private void addNewProperties(JsonGenerator generator, String criteriaField) throws IOException {
+        generator.writeFieldName("context_aware_grouping");
+        generator.writeStartObject();
+        generator.writeFieldName("fields");
+        generator.writeStartArray();
+        generator.writeString(criteriaField);
+        generator.writeEndArray();
+        generator.writeFieldName("script");
+        generator.writeStartObject();
+        generator.writeStringField("source", "String.valueOf(-1)");
+        generator.writeEndObject();
+        generator.writeEndObject();
     }
 
     /**
@@ -818,12 +944,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, Settings.Builder settingsBuilder) {
         Settings.Builder builder = Settings.builder().put(indexSettings()).put(settingsBuilder.build());
-
         if (numNodes > 0) {
             internalCluster().ensureAtLeastNumDataNodes(numNodes);
             getExcludeSettings(numNodes, builder);
         }
-        return client().admin().indices().prepareCreate(index).setSettings(builder.build());
+
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(builder.build());
+        if (builder.get(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey()) != null &&
+            builder.get(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey()).equals("true")) {
+            createIndexRequestBuilder.setMapping(DEFAULT_CONTEXT_AWARE_MAPPING);
+        }
+
+        return createIndexRequestBuilder;
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
@@ -2003,7 +2135,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns a collection of plugins that should be loaded on each node.
      */
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.emptyList();
+        return Collections.singleton(ContextAwareCustomScriptPlugin.class);
     }
 
     /**
@@ -2989,5 +3121,36 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
         BlobPath blobPath = pathType.path(shardPathInput, pathHashAlgorithm);
         return blobPath.buildAsString();
+    }
+
+    public static class ContextAwareCustomScriptPlugin extends Plugin implements ScriptPlugin {
+
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> pluginScripts = new HashMap<>();
+            pluginScripts.put("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            pluginScripts.put("String.valueOf(-1)", vars -> "-1");
+
+            return pluginScripts;
+        }
+
+        public static final String NAME = "painless";
+
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new MockScriptEngine(pluginScriptLang(), pluginScripts(), nonDeterministicPluginScripts(), pluginContextCompilers());
+        }
+
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            return Collections.emptyMap();
+        }
+
+        protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
+            return Collections.emptyMap();
+        }
+
+        public String pluginScriptLang() {
+            return NAME;
+        }
     }
 }

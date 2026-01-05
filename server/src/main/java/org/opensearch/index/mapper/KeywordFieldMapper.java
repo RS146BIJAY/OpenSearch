@@ -936,4 +936,13 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
     }
+
+    @Override
+    protected String getFieldValue(ParseContext context) throws IOException {
+        if (context.externalValueSet()) {
+            return context.externalValue().toString();
+        } else {
+            return context.parser().textOrNull();
+        }
+    }
 }

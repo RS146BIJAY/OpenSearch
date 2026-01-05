@@ -11,6 +11,7 @@ package org.opensearch.search.query;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         createIndex(
             "test",
             Settings.EMPTY,
-            "{\"properties\":{\"int_field\":{\"type\": \"integer\"},\"term_field_1\":{\"type\": \"keyword\"},\"term_field_2\":{\"type\": \"keyword\"}}}}"
+            "{\"properties\":{\"int_field\":{\"type\": \"integer\"},\"term_field_1\":{\"type\": \"keyword\"},\"term_field_2\":{\"type\": \"keyword\"}}}"
         );
         int numDocs = 100;
 
