@@ -51,6 +51,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -63,6 +64,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.lookup.FieldLookup;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.joda.time.DateTime;
@@ -85,6 +87,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singleton;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -121,7 +125,10 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class, CustomScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -228,7 +235,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testStoredFields() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -331,7 +338,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testScriptDocAndFields() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -433,7 +440,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testScriptWithUnsignedLong() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -536,7 +543,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testScriptFieldWithNanos() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -622,7 +629,8 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testScriptFieldUsingSource() throws Exception {
-        createIndex("test");
+        // Keeping CAS disabled here as we are changing mapping once index is created which is not supported in CAS currently.
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         client().prepareIndex("test")
             .setId("1")
@@ -705,7 +713,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testPartialFields() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         client().prepareIndex("test")
             .setId("1")
@@ -735,7 +743,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testStoredFieldsWithoutSource() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -976,7 +984,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testDocValueFields() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false).build());
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()

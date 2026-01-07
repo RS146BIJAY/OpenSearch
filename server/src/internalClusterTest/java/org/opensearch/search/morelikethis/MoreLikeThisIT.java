@@ -49,6 +49,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -58,6 +59,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -94,7 +97,10 @@ public class MoreLikeThisIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testSimpleMoreLikeThis() throws Exception {

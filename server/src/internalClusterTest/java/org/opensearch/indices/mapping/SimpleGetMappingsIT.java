@@ -33,11 +33,13 @@
 package org.opensearch.indices.mapping;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -45,6 +47,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -52,6 +57,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -60,14 +66,28 @@ public class SimpleGetMappingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testGetMappingsWhereThereAreNone() {
         createIndex("index");
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
-        assertEquals(MappingMetadata.EMPTY_MAPPINGS, response.mappings().get("index"));
+        assertEmptyOrOnlyDefaultMappings(response, "index");
+    }
+
+    private void assertEmptyOrOnlyDefaultMappings(GetMappingsResponse response, String indexName) {
+        final Map<String, MappingMetadata> mappings = response.mappings();
+        MappingMetadata indexMappings = mappings.get(indexName);
+        if (indexMappings.getSourceAsMap().containsKey("context_aware_grouping")) {
+            assertEquals(indexMappings.getSourceAsMap().size(), 2);
+            assertTrue(indexMappings.getSourceAsMap().containsKey("dynamic"));
+        } else {
+            assertEquals(indexMappings, MappingMetadata.EMPTY_MAPPINGS);
+        }
     }
 
     private XContentBuilder getMappingForType() throws IOException {

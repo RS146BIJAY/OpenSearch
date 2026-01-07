@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Priority;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -47,6 +48,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -58,7 +61,10 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockTransportService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {

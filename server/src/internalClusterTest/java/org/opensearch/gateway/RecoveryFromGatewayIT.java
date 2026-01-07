@@ -83,6 +83,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.InternalTestCluster.RestartCallback;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -105,6 +106,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -136,7 +138,10 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {

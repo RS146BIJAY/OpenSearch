@@ -41,6 +41,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.node.NodeService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.fetch.subphase.highlight.HighlighterSearchIT;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
@@ -48,6 +51,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -82,7 +87,11 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ParameterizedStatic
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return installPlugin ? Arrays.asList(IngestTestPlugin.class) : Collections.emptyList();
+        Collection<Class<? extends Plugin>> plugins = installPlugin ? Arrays.asList(IngestTestPlugin.class) : Collections.emptyList();
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            plugins.stream()
+        ).collect(Collectors.toSet());
     }
 
     public void testFailPipelineCreation() throws Exception {

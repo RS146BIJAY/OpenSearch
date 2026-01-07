@@ -50,6 +50,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.aggregations.bucket.HistogramIT;
 import org.opensearch.test.MockIndexEventListener;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -65,6 +66,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -83,7 +86,10 @@ public class IndicesLifecycleListenerIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockIndexEventListener.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockIndexEventListener.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testBeforeIndexAddedToCluster() throws Exception {

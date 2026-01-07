@@ -35,11 +35,14 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.Netty4BlockingPlugin;
 import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.transport.netty4.Netty4Transport;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class OpenSearchNetty4IntegTestCase extends OpenSearchIntegTestCase {
 
@@ -67,6 +70,9 @@ public abstract class OpenSearchNetty4IntegTestCase extends OpenSearchIntegTestC
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(Netty4ModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(Netty4ModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 }

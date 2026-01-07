@@ -57,6 +57,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.fetch.subphase.highlight.HighlighterSearchIT;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
@@ -68,6 +71,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.NodeRoles.nonIngestNode;
@@ -100,7 +104,10 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExtendedIngestTestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ExtendedIngestTestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testSimulate() throws Exception {

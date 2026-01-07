@@ -47,6 +47,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
 import org.junit.Before;
@@ -56,6 +57,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
@@ -191,7 +194,10 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return singleton(DeletePlzPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DeletePlzPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class DeletePlzPlugin extends MockScriptPlugin {

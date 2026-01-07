@@ -29,6 +29,8 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -41,7 +43,10 @@ public class AclRoutingSearchProcessorIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(SearchPipelineCommonModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(SearchPipelineCommonModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testSearchProcessorExtractsRouting() throws Exception {

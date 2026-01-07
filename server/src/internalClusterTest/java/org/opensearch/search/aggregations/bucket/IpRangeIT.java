@@ -43,6 +43,9 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.range.Range;
+import org.opensearch.search.fetch.subphase.highlight.HighlighterSearchIT;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
@@ -51,6 +54,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -82,7 +87,10 @@ public class IpRangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummyScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DummyScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

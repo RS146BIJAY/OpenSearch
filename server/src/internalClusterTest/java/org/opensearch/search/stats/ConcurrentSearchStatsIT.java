@@ -37,6 +37,8 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING;
@@ -50,7 +52,10 @@ public class ConcurrentSearchStatsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ScriptedDelayedPlugin.class, InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ScriptedDelayedPlugin.class, InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

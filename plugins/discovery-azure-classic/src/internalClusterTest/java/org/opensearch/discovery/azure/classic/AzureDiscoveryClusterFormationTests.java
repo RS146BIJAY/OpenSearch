@@ -46,11 +46,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
+import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.secure_sm.AccessController;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -82,6 +85,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
@@ -99,7 +104,10 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(AzureDiscoveryPlugin.class, TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AzureDiscoveryPlugin.class, TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private static Path keyStoreFile;

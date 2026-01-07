@@ -48,10 +48,13 @@ import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.StoredScriptsIT;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -64,7 +67,10 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestTestPlugin.class, StoredScriptsIT.CustomScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IngestTestPlugin.class, StoredScriptsIT.CustomScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testIncludeGlobalState() throws Exception {

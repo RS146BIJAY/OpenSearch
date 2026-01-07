@@ -64,6 +64,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -148,7 +150,10 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     ClusterState getNodeClusterState(String node) {

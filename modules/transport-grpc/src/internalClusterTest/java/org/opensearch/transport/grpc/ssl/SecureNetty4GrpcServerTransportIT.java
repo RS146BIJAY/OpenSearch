@@ -18,6 +18,7 @@ import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.grpc.GrpcPlugin;
 
@@ -25,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import io.grpc.health.v1.HealthCheckResponse;
 
@@ -76,7 +79,10 @@ public abstract class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegT
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(GrpcPlugin.class, MockSecurityPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(GrpcPlugin.class, MockSecurityPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private SecureSettingsHelpers.ConnectExceptions tryConnectClient(NettyGrpcClient client) {

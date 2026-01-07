@@ -41,6 +41,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -54,6 +55,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -80,7 +83,10 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(AggregationTestScriptsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AggregationTestScriptsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private static double[] randomPercentiles() {

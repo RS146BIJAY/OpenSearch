@@ -56,6 +56,7 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -65,6 +66,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -95,7 +98,10 @@ public class MoreExpressionIT extends ParameterizedStaticSettingsOpenSearchInteg
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ExpressionModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {

@@ -32,12 +32,14 @@
 
 package org.opensearch.discovery;
 
+import org.opensearch.action.bulk.BulkWithUpdatesIT;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.store.IndicesStoreIntegrationIT;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -45,6 +47,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +58,10 @@ public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /**

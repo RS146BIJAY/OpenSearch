@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
@@ -50,7 +52,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TieredSpilloverCachePlugin.class, TieredSpilloverCacheIT.MockDiskCachePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TieredSpilloverCachePlugin.class, TieredSpilloverCacheIT.MockDiskCachePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private static final String HEAP_CACHE_SIZE_STRING = "10000B";

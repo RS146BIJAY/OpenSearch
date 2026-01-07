@@ -46,6 +46,9 @@ import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.fetch.subphase.highlight.HighlighterSearchIT;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockKeywordPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,7 +58,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -157,7 +162,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(AggregationTestScriptsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AggregationTestScriptsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private static MedianAbsoluteDeviationAggregationBuilder randomBuilder() {

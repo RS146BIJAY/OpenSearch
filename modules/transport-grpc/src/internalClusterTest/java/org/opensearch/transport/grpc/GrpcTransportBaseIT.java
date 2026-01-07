@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
 
@@ -23,6 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import io.grpc.health.v1.HealthCheckResponse;
 
@@ -65,7 +68,10 @@ public abstract class GrpcTransportBaseIT extends OpenSearchIntegTestCase {
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GrpcPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(GrpcPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /**

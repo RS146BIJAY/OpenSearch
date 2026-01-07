@@ -42,6 +42,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
@@ -472,6 +473,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicasIndex)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShardsIndex)
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
                 .build()
         );
         ensureGreen();
@@ -1038,6 +1040,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Node node = internalCluster().getInstance(Node.class, nodeName);
         final ShardId shardId = new ShardId(index, 0);
         final ShardPath shardPath = ShardPath.loadFileCachePath(node.getNodeEnvironment(), shardId);
+        System.out.println("Shard Path " + shardPath.getShardStatePath());
 
         assertBusy(() -> {
             assertTrue(

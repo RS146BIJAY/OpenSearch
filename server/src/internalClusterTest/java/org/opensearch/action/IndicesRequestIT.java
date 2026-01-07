@@ -105,6 +105,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
+import org.opensearch.search.aggregations.metrics.TopHitsIT;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -127,6 +128,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -166,7 +169,10 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InterceptingTransportService.TestPlugin.class, CustomScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InterceptingTransportService.TestPlugin.class, CustomScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

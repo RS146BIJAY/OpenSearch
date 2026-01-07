@@ -42,12 +42,16 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -76,7 +80,10 @@ public class StoredExpressionIT extends ParameterizedStaticSettingsOpenSearchInt
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ExpressionModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {

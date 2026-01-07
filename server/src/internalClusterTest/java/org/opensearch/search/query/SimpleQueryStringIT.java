@@ -58,6 +58,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.BeforeClass;
@@ -71,6 +72,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -131,7 +134,10 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockAnalysisPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockAnalysisPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {

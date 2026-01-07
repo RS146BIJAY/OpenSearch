@@ -17,11 +17,15 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.plugin.CustomSortBuilder;
 import org.opensearch.search.sort.plugin.CustomSortPlugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +45,10 @@ public class SortFromPluginIT extends ParameterizedStaticSettingsOpenSearchInteg
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CustomSortPlugin.class, InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(CustomSortPlugin.class, InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testPluginSort() throws Exception {

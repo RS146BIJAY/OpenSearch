@@ -46,6 +46,7 @@ import org.opensearch.index.rankeval.PrecisionAtK.Detail;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
@@ -55,6 +56,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -81,7 +84,10 @@ public class RankEvalRequestIT extends ParameterizedStaticSettingsOpenSearchInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(RankEvalModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(RankEvalModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Before

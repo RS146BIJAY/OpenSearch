@@ -52,6 +52,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.opensearch.index.IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,7 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GetIndexIT extends OpenSearchIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).setSettings(Settings.builder().put("number_of_shards", 1)).get());
+        assertAcked(prepareCreate("idx", Settings.builder().put("number_of_shards", 1)).addAlias(new Alias("alias_idx")).get());
         ensureSearchable("idx");
         createIndex("empty_idx");
         ensureSearchable("idx", "empty_idx");
@@ -282,7 +283,13 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);
-        assertEquals(indexMappings, MappingMetadata.EMPTY_MAPPINGS);
+        if ("true".equals(response.settings().get(indexName).get(INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey()))) {
+            assertEquals(indexMappings.getSourceAsMap().size(), 2);
+            assertTrue(indexMappings.getSourceAsMap().containsKey("context_aware_grouping"));
+            assertTrue(indexMappings.getSourceAsMap().containsKey("dynamic"));
+        } else {
+            assertEquals(indexMappings, MappingMetadata.EMPTY_MAPPINGS);
+        }
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {

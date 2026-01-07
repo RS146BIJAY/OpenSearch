@@ -19,6 +19,7 @@ import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.MockSearchService;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
@@ -33,6 +34,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.apache.logging.log4j.core.util.Throwables.getRootCause;
@@ -101,7 +104,10 @@ public class ScriptCacheIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(CustomScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testPainlessCompilationLimit429Error() throws Exception {

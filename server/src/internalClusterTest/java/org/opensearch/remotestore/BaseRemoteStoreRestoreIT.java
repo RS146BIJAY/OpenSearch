@@ -10,7 +10,9 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -42,7 +44,10 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class))
+        ).collect(Collectors.toSet());
     }
 
     protected void restore(String... indices) {

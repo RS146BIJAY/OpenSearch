@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -52,7 +53,10 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IntegrationTestOTelTelemetryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IntegrationTestOTelTelemetryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

@@ -36,10 +36,13 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @ThreadLeakFilters(filters = HdfsClientThreadLeakFilter.class)
 // Ony using a single node here since the TestingFs only supports the single-node case
@@ -64,6 +67,9 @@ public class HdfsBlobStoreRepositoryTests extends OpenSearchBlobStoreRepositoryI
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(HdfsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(HdfsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 }

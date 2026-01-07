@@ -80,6 +80,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
@@ -100,6 +101,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.roaringbitmap.RoaringBitmap;
 
@@ -167,7 +170,10 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, MockAnalysisPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class, MockAnalysisPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

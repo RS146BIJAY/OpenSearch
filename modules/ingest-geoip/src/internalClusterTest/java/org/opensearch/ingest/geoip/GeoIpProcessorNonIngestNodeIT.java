@@ -58,6 +58,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.NodeRoles.nonIngestNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -75,7 +77,10 @@ public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestGeoIpModulePlugin.class, IngestGeoIpSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IngestGeoIpModulePlugin.class, IngestGeoIpSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

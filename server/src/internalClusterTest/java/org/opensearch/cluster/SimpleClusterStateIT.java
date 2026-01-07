@@ -61,6 +61,7 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -76,6 +77,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -94,7 +97,10 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(PrivateCustomPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(PrivateCustomPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

@@ -57,10 +57,12 @@ import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Sum;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -78,6 +80,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -249,7 +253,10 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(DateScriptMocksPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DateScriptMocksPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @After

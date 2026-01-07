@@ -40,6 +40,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
@@ -49,6 +50,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
 public abstract class ParentChildTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -64,7 +67,10 @@ public abstract class ParentChildTestCase extends ParameterizedStaticSettingsOpe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, ParentJoinModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class, ParentJoinModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

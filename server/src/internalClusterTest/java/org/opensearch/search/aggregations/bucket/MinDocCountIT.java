@@ -68,6 +68,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -88,7 +90,10 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(CustomScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {

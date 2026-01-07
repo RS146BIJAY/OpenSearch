@@ -74,6 +74,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
@@ -136,7 +138,10 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestPlugin.class, MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private void setClusterInfoTimeout(String timeValue) {

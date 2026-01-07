@@ -56,12 +56,15 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.common.xcontent.XContentFactory.yamlBuilder;
@@ -110,7 +113,10 @@ public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSear
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(PercolatorModulePlugin.class, GeoModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(PercolatorModulePlugin.class, GeoModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testPercolatorQuery() throws Exception {

@@ -21,6 +21,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
@@ -47,7 +48,10 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockRepository.Plugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class, MockRepository.Plugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testPutWeightedRouting() {

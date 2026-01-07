@@ -74,9 +74,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import org.opensearch.test.MockKeywordPlugin;
 import org.threeten.bp.Duration;
 
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -99,7 +102,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestGoogleCloudStoragePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestGoogleCloudStoragePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

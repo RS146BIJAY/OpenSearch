@@ -48,9 +48,12 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -61,6 +64,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.DocWriteResponse.Result.CREATED;
 import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
@@ -77,7 +82,10 @@ import static org.hamcrest.Matchers.oneOf;
 public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestTestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IngestTestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testBulkIndexCreatesMapping() throws Exception {

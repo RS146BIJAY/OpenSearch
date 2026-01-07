@@ -34,18 +34,25 @@ package org.opensearch.index.query.plugin;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class CustomQueryParserIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummyQueryParserPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DummyQueryParserPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

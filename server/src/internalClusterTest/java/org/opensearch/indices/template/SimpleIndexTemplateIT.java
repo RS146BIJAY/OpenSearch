@@ -50,12 +50,14 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -68,6 +70,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -89,7 +93,10 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @After
@@ -532,7 +539,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .addAlias(new Alias("complex_filtered_alias").filter(QueryBuilders.termsQuery("type", "typeX", "typeY", "typeZ")))
             .get();
 
-        assertAcked(prepareCreate("test_index"));
+        assertAcked(prepareCreate("test_index", Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false)));
         ensureGreen();
 
         client().prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();

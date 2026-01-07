@@ -66,6 +66,7 @@ import org.opensearch.action.admin.indices.segments.IndexSegments;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
@@ -83,6 +84,7 @@ import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -227,9 +229,7 @@ import java.util.stream.Collectors;
 
 import reactor.util.annotation.NonNull;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.*;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
@@ -423,7 +423,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private String randomStorageType;
 
-    private final String DEFAULT_CONTEXT_AWARE_MAPPING = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\" } }}";
+    public final String DEFAULT_CONTEXT_AWARE_MAPPING = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\" } }}";
+    public final String DEFAULT_CONTEXT_AWARE_MAPPING_WITH_ROUTING = "{\"dynamic\": true, \"context_aware_grouping\": { \"fields\": [\"tempId\"], \"script\": { \"source\": \"String.valueOf(-1)\" } }, \"_routing\": { \"required\": true }}";
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -773,7 +774,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * creates an index with the given setting
      */
     public final void createIndex(String name, Settings indexSettings) {
-        assertAcked(prepareCreate(name).setSettings(indexSettings));
+        System.out.println("CAS enabled " + indexSettings.getAsBoolean(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false));
+
+        if (indexSettings.getAsBoolean(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false) == true) {
+            assertAcked(prepareCreate(name, Settings.builder().put(indexSettings))
+                .setMapping(getDefaultMapping(indexSettings.getAsBoolean(INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), false))));
+        } else {
+            assertAcked(prepareCreate(name, Settings.builder().put(indexSettings)));
+        }
+
     }
 
     /**
@@ -944,6 +953,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, Settings.Builder settingsBuilder) {
         Settings.Builder builder = Settings.builder().put(indexSettings()).put(settingsBuilder.build());
+        if (isAssociatedWithAnyTemplateWithAMapping(index)) {
+            // If associated with a template with a mapping
+            builder.put(INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false);
+        }
+
         if (numNodes > 0) {
             internalCluster().ensureAtLeastNumDataNodes(numNodes);
             getExcludeSettings(numNodes, builder);
@@ -952,10 +966,36 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(builder.build());
         if (builder.get(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey()) != null &&
             builder.get(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey()).equals("true")) {
-            createIndexRequestBuilder.setMapping(DEFAULT_CONTEXT_AWARE_MAPPING);
+            createIndexRequestBuilder.setMapping(getDefaultMapping( builder.get(INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey()) != null));
         }
 
         return createIndexRequestBuilder;
+    }
+
+    private boolean isAssociatedWithAnyTemplateWithAMapping(String indexName) {
+        GetIndexTemplatesResponse templates = client().admin()
+            .indices()
+            .prepareGetTemplates()
+            .get();
+
+        for (IndexTemplateMetadata template : templates.getIndexTemplates()) {
+            for (String pattern : template.patterns()) {
+                if (Regex.simpleMatch(pattern, indexName) && template.getMappings() != null) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private String getDefaultMapping(boolean isRoutingEnabled) {
+        // Routing is required when INDEX_ROUTING_PARTITION_SIZE_SETTING is set.
+        if (isRoutingEnabled) {
+            return DEFAULT_CONTEXT_AWARE_MAPPING_WITH_ROUTING;
+        } else {
+            return DEFAULT_CONTEXT_AWARE_MAPPING;
+        }
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {

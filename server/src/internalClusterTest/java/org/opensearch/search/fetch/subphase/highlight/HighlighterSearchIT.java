@@ -89,6 +89,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -151,7 +153,10 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockAnalysisPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockAnalysisPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException, InterruptedException {

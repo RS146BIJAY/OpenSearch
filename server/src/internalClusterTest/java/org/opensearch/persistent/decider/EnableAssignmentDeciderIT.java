@@ -43,10 +43,14 @@ import org.opensearch.persistent.TestPersistentTasksPlugin;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.persistent.decider.EnableAssignmentDecider.Allocation;
@@ -59,7 +63,10 @@ public class EnableAssignmentDeciderIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return singletonList(TestPersistentTasksPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestPersistentTasksPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

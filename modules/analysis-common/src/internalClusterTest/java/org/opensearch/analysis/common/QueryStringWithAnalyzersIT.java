@@ -38,10 +38,13 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -64,7 +67,10 @@ public class QueryStringWithAnalyzersIT extends ParameterizedStaticSettingsOpenS
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CommonAnalysisModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(CommonAnalysisModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /**

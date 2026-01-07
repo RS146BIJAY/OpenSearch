@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.functionscore.ExplainableScriptIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -27,7 +28,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -38,7 +41,10 @@ public class FetchByTermVersionIT extends OpenSearchIntegTestCase {
     AtomicBoolean isTermVersionCheckEnabled = new AtomicBoolean();
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockTransportService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     AtomicBoolean forceFetchFromCM = new AtomicBoolean();

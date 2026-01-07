@@ -37,6 +37,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
@@ -44,6 +45,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -53,7 +56,10 @@ public class SettingsListenerIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(SettingsListenerPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(SettingsListenerPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class SettingsListenerPlugin extends Plugin {

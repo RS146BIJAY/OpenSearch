@@ -19,6 +19,8 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.CheckedBiFunction;
@@ -39,6 +41,7 @@ import org.opensearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -540,10 +543,26 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
         if (!directoryToCombine.isEmpty()) {
             accumulatingIndexWriter.addIndexes(directoryToCombine.toArray(new Directory[0]));
+            Path[] childDirectoryPath = directoryToCombine.stream()
+                .map(directory -> getLocalFSDirectory(directory).getDirectory())
+                .toArray(Path[]::new);
             IOUtils.closeWhileHandlingException(directoryToCombine);
+            IOUtils.rm(childDirectoryPath);
         }
 
         deleteDummyTombstoneEntry();
+    }
+
+    private FSDirectory getLocalFSDirectory(Directory localDirectory) {
+        FSDirectory localFSDirectory;
+        if (localDirectory instanceof FSDirectory) {
+            localFSDirectory = (FSDirectory) localDirectory;
+        } else {
+            // In this case it should be a FilterDirectory wrapped over FSDirectory as per above validation.
+            localFSDirectory = (FSDirectory) (((FilterDirectory) localDirectory).getDelegate());
+        }
+
+        return localFSDirectory;
     }
 
     private void deleteDummyTombstoneEntry() throws IOException {

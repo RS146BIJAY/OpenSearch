@@ -80,6 +80,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockIndexEventListener;
@@ -110,6 +111,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
@@ -141,12 +143,11 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            MockTransportService.TestPlugin.class,
-            MockIndexEventListener.TestPlugin.class,
-            MockFSIndexStore.TestPlugin.class,
-            InternalSettingsPlugin.class
-        );
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class,
+                MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /**

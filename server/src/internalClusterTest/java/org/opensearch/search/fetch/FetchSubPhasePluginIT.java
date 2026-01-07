@@ -54,6 +54,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,6 +65,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -89,7 +92,10 @@ public class FetchSubPhasePluginIT extends ParameterizedStaticSettingsOpenSearch
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(FetchTermVectorsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(FetchTermVectorsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @SuppressWarnings("unchecked")

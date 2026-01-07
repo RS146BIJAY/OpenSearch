@@ -49,6 +49,7 @@ import org.opensearch.index.query.functionscore.ScoreFunctionParser;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.fetch.FetchSubPhasePluginIT;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
@@ -58,6 +59,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -86,7 +89,10 @@ public class FunctionScorePluginIT extends ParameterizedStaticSettingsOpenSearch
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CustomDistanceScorePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(CustomDistanceScorePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testPlugin() throws Exception {

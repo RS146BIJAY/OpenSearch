@@ -41,7 +41,9 @@ import org.opensearch.ingest.IngestStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
@@ -52,6 +54,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.INGEST;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +68,10 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestCommonModulePlugin.class, CustomScriptPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IngestCommonModulePlugin.class, CustomScriptPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

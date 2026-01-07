@@ -37,6 +37,7 @@ import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
@@ -44,6 +45,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +57,10 @@ public class PersistentTasksExecutorFullRestartIT extends OpenSearchIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestPersistentTasksPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestPersistentTasksPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     protected boolean ignoreExternalCluster() {

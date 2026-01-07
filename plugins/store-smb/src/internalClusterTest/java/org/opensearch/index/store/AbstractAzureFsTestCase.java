@@ -39,13 +39,18 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractAzureFsTestCase extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(SMBStorePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(SMBStorePlugin.class)
+        ).collect(Collectors.toList());
     }
 
     public void testAzureFs() {

@@ -69,7 +69,10 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockRepository.Plugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class, MockRepository.Plugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testSearchWithWRRShardRouting() throws IOException {

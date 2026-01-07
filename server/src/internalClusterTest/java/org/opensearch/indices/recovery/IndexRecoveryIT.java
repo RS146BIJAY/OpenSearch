@@ -112,6 +112,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.search.aggregations.bucket.HistogramIT;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.tasks.Task;
@@ -151,6 +152,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
@@ -185,13 +187,14 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            MockTransportService.TestPlugin.class,
-            MockFSIndexStore.TestPlugin.class,
-            TestAnalysisPlugin.class,
-            InternalSettingsPlugin.class,
-            MockEngineFactoryPlugin.class
-        );
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class,
+                MockFSIndexStore.TestPlugin.class,
+                TestAnalysisPlugin.class,
+                InternalSettingsPlugin.class,
+                MockEngineFactoryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

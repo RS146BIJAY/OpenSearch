@@ -47,8 +47,10 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
 
@@ -59,8 +61,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import fixture.azure.AzureHttpHandler;
+import org.opensearch.test.transport.MockTransportService;
 import reactor.core.scheduler.Schedulers;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -87,7 +92,10 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestAzureRepositoryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestAzureRepositoryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

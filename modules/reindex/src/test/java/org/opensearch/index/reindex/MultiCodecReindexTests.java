@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -45,7 +46,10 @@ public class MultiCodecReindexTests extends ReindexTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(InternalSettingsPlugin.class, ReindexModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class, ReindexModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testReindexingMultipleCodecs() throws InterruptedException, ExecutionException {

@@ -25,6 +25,8 @@ import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
@@ -46,7 +48,10 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IntegrationTestOTelTelemetryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IntegrationTestOTelTelemetryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

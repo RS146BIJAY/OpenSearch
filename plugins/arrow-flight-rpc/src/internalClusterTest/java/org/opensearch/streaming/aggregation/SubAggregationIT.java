@@ -45,6 +45,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -70,7 +72,10 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FlightStreamPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(FlightStreamPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

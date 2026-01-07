@@ -26,6 +26,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 
@@ -39,7 +41,10 @@ public class StreamTransportExampleIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(StreamTransportExamplePlugin.class, FlightStreamPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(StreamTransportExamplePlugin.class, FlightStreamPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)

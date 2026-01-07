@@ -49,6 +49,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -60,7 +62,10 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(AnalysisICUPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AnalysisICUPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /*

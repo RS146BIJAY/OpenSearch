@@ -18,6 +18,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
@@ -25,6 +26,8 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 
@@ -33,7 +36,10 @@ public class ClientSideChaosIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FlightStreamPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(FlightStreamPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

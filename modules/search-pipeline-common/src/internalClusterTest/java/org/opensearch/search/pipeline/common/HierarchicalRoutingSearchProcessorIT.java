@@ -24,11 +24,14 @@ import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +41,10 @@ public class HierarchicalRoutingSearchProcessorIT extends OpenSearchIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SearchPipelineCommonModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(SearchPipelineCommonModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testHierarchicalRoutingSearchProcessor() throws Exception {

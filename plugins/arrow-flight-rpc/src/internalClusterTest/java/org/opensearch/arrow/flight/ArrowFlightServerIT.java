@@ -27,8 +27,11 @@ import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,6 +39,8 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightService.ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
@@ -54,7 +59,10 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FlightStreamPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(FlightStreamPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

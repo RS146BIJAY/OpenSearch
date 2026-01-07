@@ -30,6 +30,8 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -52,7 +54,10 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockInternalClusterInfoService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockInternalClusterInfoService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Before

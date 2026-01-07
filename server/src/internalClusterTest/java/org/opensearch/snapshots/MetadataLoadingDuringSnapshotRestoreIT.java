@@ -58,6 +58,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,7 +76,13 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         /// This test uses a snapshot/restore plugin implementation that
         // counts the number of times metadata are loaded
-        return Collections.singletonList(CountingMockRepositoryPlugin.class);
+
+//        return Stream.concat(
+//            super.nodePlugins().stream(),
+//            Stream.of(CountingMockRepositoryPlugin.class)
+//        ).collect(Collectors.toSet());
+
+        return Stream.of(CountingMockRepositoryPlugin.class, ContextAwareCustomScriptPlugin.class).collect(Collectors.toSet());
     }
 
     public void testWhenMetadataAreLoaded() throws Exception {

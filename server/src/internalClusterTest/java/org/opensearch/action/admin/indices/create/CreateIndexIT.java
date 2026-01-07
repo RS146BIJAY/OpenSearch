@@ -388,12 +388,10 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
             CreateIndexResponse response;
 
             try {
-                response = prepareCreate("test_" + shards + "_" + partitionSize).setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", shards)
-                        .put("index.number_of_routing_shards", shards)
-                        .put("index.routing_partition_size", partitionSize)
-                ).execute().actionGet();
+                response = prepareCreate("test_" + shards + "_" + partitionSize, Settings.builder()
+                    .put("index.number_of_shards", shards)
+                    .put("index.number_of_routing_shards", shards)
+                    .put("index.routing_partition_size", partitionSize)).execute().actionGet();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;
             }

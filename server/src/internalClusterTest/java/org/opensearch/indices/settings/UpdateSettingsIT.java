@@ -54,6 +54,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -65,6 +66,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -163,7 +166,10 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummySettingPlugin.class, FinalSettingPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DummySettingPlugin.class, FinalSettingPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class DummySettingPlugin extends Plugin {

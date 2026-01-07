@@ -54,6 +54,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.engine.MockEngineSupport;
 import org.opensearch.test.engine.ThrowingLeafReaderWrapper;
@@ -65,6 +66,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
@@ -76,7 +79,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(RandomExceptionDirectoryReaderWrapper.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

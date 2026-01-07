@@ -46,6 +46,7 @@ import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.engine.MockEngineSupport;
@@ -54,6 +55,8 @@ import org.opensearch.test.transport.MockTransportService;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -68,7 +71,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class CorruptedTranslogIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testCorruptTranslogFiles() throws Exception {

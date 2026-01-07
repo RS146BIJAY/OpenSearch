@@ -12,6 +12,7 @@ import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.transport.Netty4BlockingPlugin;
@@ -21,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import io.netty.buffer.ByteBufUtil;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -45,7 +48,10 @@ public class Netty4HeaderVerifierIT extends OpenSearchNetty4IntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(Netty4BlockingPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(Netty4BlockingPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testThatNettyHttpServerRequestBlockedWithHeaderVerifier() throws Exception {

@@ -42,6 +42,8 @@ import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
 
@@ -90,7 +92,10 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4ModulePlugin.class, ReactorNetty4Plugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(getTestTransportPlugin(), Netty4ModulePlugin.class, ReactorNetty4Plugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

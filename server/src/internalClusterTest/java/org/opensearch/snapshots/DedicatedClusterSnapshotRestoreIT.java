@@ -121,6 +121,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
@@ -208,12 +210,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            MockRepository.Plugin.class,
-            TestCustomMetadataPlugin.class,
-            BrokenSettingPlugin.class,
-            MockTransportService.TestPlugin.class
-        );
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class,
+                MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class BrokenSettingPlugin extends Plugin {

@@ -10,9 +10,11 @@ package org.opensearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -68,5 +70,21 @@ public class CriteriaBasedCodec extends FilterCodec {
     @Override
     public DocValuesFormat docValuesFormat() {
         return new CriteriaBasedDocValueFormat(bucket);
+    }
+
+    @Override
+    public FieldInfosFormat fieldInfosFormat() {
+        return new FieldInfosFormat() {
+
+            @Override
+            public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
+                return delegate.fieldInfosFormat().read(directory, segmentInfo, segmentSuffix, iocontext);
+            }
+
+            @Override
+            public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context) throws IOException {
+                delegate.fieldInfosFormat().write(directory, segmentInfo, segmentSuffix, infos, context);
+            }
+        };
     }
 }

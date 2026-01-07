@@ -54,6 +54,7 @@ import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.engine.MockEngineSupport;
@@ -66,6 +67,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -86,7 +89,10 @@ public class SearchWithRandomExceptionsIT extends ParameterizedStaticSettingsOpe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(RandomExceptionDirectoryReaderWrapper.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

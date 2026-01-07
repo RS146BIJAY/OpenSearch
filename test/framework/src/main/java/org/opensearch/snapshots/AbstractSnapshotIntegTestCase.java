@@ -104,6 +104,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
@@ -155,7 +157,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ParameterizedStaticS
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockRepository.Plugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @After

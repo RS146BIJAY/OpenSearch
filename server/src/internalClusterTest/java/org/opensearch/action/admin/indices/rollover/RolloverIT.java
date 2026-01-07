@@ -50,6 +50,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -60,6 +61,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -79,7 +82,10 @@ public class RolloverIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testRolloverOnEmptyIndex() throws Exception {

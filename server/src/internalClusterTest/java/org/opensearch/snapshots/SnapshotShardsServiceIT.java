@@ -35,6 +35,7 @@ package org.opensearch.snapshots;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
@@ -45,6 +46,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,7 +58,10 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, MockTransportService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockRepository.Plugin.class, MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testRetryPostingSnapshotStatusMessages() throws Exception {

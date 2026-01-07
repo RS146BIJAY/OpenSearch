@@ -33,6 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
@@ -40,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singleton;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
@@ -51,7 +53,10 @@ import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
 public abstract class ReindexTestCase extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ReindexModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     protected ReindexRequestBuilder reindex() {

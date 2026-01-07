@@ -52,11 +52,11 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
                 .map(b -> ((Mapper.Builder) b).name())
                 .collect(Collectors.toSet());
 
-            if (propertyFieldNames.containsAll(builder.fields.getValue()) == false) {
-                throw new MapperParsingException(
-                    "[fields] should be from properties: [" + propertyFieldNames + "] but found [" + builder.fields.getValue() + "]"
-                );
-            }
+//            if (propertyFieldNames.containsAll(builder.fields.getValue()) == false) {
+//                throw new MapperParsingException(
+//                    "[fields] should be from properties: [" + propertyFieldNames + "] but found [" + builder.fields.getValue() + "]"
+//                );
+//            }
 
             final Script s = builder.script.getValue();
             if (s != null) {

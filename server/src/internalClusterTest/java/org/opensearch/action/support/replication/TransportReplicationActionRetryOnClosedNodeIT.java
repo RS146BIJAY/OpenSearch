@@ -35,6 +35,7 @@ package org.opensearch.action.support.replication;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -72,6 +73,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -80,7 +83,10 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestPlugin.class, MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class Request extends ReplicationRequest<Request> {

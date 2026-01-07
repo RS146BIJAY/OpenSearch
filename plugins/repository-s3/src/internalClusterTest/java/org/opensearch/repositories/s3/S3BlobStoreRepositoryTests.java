@@ -37,6 +37,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.opensearch.snapshots.mockstore.MockRepository;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -79,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -134,7 +136,10 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestS3RepositoryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TestS3RepositoryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

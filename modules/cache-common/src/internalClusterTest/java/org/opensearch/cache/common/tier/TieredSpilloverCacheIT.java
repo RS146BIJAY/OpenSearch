@@ -60,7 +60,10 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TieredSpilloverCachePlugin.class, MockDiskCachePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(TieredSpilloverCachePlugin.class, MockDiskCachePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testPluginsAreInstalled() {

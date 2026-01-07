@@ -21,6 +21,8 @@ import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
@@ -54,7 +56,10 @@ public abstract class GeoModulePluginIntegTestCase extends ParameterizedStaticSe
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(GeoModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(GeoModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /**

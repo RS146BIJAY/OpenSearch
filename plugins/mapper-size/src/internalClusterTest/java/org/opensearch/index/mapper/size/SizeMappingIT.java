@@ -45,6 +45,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -56,7 +58,10 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MapperSizePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MapperSizePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     // issue 5053

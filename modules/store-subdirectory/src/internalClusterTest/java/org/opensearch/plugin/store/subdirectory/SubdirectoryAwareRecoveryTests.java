@@ -48,13 +48,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 3)
 public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(SubdirectoryStorePlugin.class, TestEnginePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(SubdirectoryStorePlugin.class, TestEnginePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

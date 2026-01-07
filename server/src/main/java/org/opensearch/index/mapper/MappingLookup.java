@@ -184,14 +184,15 @@ public final class MappingLookup implements Iterable<Mapper> {
     }
 
     public void checkLimits(IndexSettings settings) {
-        checkFieldLimit(settings.getMappingTotalFieldsLimit());
+        int casMetadataFieldCount = settings.isContextAwareEnabled()? 1: 0;
+        checkFieldLimit(settings.getMappingTotalFieldsLimit(), casMetadataFieldCount);
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
         checkNestedLimit(settings.getMappingNestedFieldsLimit());
     }
 
-    private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - metadataFieldCount > limit) {
+    private void checkFieldLimit(long limit, int casMetadataFieldCount) {
+        if (fieldMappers.size() + objectMappers.size() - metadataFieldCount - casMetadataFieldCount > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
         }
     }

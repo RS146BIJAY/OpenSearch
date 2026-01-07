@@ -44,6 +44,8 @@ import org.opensearch.test.OpenSearchIntegTestCase.ThirdParty;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Base class for AWS tests that require credentials.
@@ -81,6 +83,9 @@ public abstract class AbstractAwsTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(Ec2DiscoveryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(Ec2DiscoveryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 }

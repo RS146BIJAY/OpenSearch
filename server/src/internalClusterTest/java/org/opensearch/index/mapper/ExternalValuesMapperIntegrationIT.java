@@ -39,10 +39,13 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.functionscore.ExplainableScriptIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.locationtech.jts.geom.Coordinate;
 
@@ -52,7 +55,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(ExternalMapperPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ExternalMapperPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testHighlightingOnCustomString() throws Exception {

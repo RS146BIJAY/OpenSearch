@@ -29,6 +29,7 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.ingest.PipelineConfiguration;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +38,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
@@ -46,7 +49,10 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SearchPipelineCommonModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(SearchPipelineCommonModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Before

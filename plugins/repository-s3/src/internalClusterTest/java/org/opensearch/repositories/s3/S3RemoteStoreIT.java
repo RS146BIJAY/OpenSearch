@@ -26,6 +26,7 @@ import org.opensearch.remotestore.RemoteStoreCoreTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.secure_sm.AccessController;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
 
@@ -35,6 +36,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -69,7 +72,10 @@ public class S3RemoteStoreIT extends RemoteStoreCoreTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(S3RepositoryPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(S3RepositoryPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

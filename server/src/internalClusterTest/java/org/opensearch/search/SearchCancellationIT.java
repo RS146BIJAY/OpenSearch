@@ -60,6 +60,7 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafFieldsLookup;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
@@ -77,6 +78,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY;
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
@@ -111,7 +114,10 @@ public class SearchCancellationIT extends ParameterizedStaticSettingsOpenSearchI
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ScriptedBlockPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ScriptedBlockPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

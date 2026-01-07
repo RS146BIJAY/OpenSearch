@@ -52,12 +52,15 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -65,7 +68,10 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MetadataFilteringPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MetadataFilteringPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testFilteredRepoMetadataIsUsed() {

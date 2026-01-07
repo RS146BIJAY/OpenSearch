@@ -47,6 +47,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4ModulePlugin;
@@ -59,6 +60,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
@@ -93,7 +96,10 @@ public class RetryTests extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexModulePlugin.class, Netty4ModulePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(ReindexModulePlugin.class, Netty4ModulePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     /**

@@ -47,6 +47,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.env.Environment;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.MockKeywordPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
@@ -79,7 +81,10 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockInternalClusterInfoService.TestPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockInternalClusterInfoService.TestPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     @Override

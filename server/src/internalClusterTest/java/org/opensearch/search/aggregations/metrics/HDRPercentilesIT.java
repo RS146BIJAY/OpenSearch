@@ -45,6 +45,7 @@ import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.test.MockKeywordPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,6 +55,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -81,7 +84,10 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(AggregationTestScriptsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AggregationTestScriptsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private static double[] randomPercentiles() {

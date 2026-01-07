@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
@@ -139,6 +140,8 @@ final class DocumentParser {
             parser.skipChildren();
         } else if (emptyDoc == false) {
             parseObjectOrNested(context, mapping.root);
+        }  else if (emptyDoc == true && Assertions.ENABLED) {
+            generateGroupingCriteria(context);
         }
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -490,6 +493,10 @@ final class DocumentParser {
                         .collect(Collectors.joining("-"));
                     doc.setGroupingCriteria(criteria);
                 }
+            } else if (Assertions.ENABLED) {
+                // For test cases, in case we are creating index without creating documents.
+                ParseContext.Document doc = context.doc();
+                doc.setGroupingCriteria("-1");
             }
         }
     }

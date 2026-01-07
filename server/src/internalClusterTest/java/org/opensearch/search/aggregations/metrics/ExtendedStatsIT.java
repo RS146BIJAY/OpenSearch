@@ -45,12 +45,15 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.missing.Missing;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.ExtendedStats.Bounds;
+import org.opensearch.search.functionscore.ExplainableScriptIT;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -76,7 +79,10 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(AggregationTestScriptsPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AggregationTestScriptsPlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private static double stdDev(int... vals) {

@@ -37,13 +37,17 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.onlyRole;
@@ -91,7 +95,10 @@ public class DiscoveryNodeRoleIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(AdditionalRolePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(AdditionalRolePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public void testDefaultHasAdditionalRole() {

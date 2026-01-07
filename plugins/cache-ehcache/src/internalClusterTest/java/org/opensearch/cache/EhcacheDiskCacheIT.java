@@ -34,8 +34,10 @@ import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.client.Client;
 import org.junit.Assert;
 
@@ -68,7 +70,10 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(EhcacheCachePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(EhcacheCachePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     private Settings defaultSettings(long sizeInBytes, TimeValue expirationTime) {

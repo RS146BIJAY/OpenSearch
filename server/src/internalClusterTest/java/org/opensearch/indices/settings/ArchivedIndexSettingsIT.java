@@ -10,15 +10,19 @@ package org.opensearch.indices.settings;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.startsWith;
@@ -132,7 +136,11 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return installPlugin ? Arrays.asList(DummySettingPlugin.class) : Collections.emptyList();
+        Collection<Class<? extends Plugin>> plugins = installPlugin ? Arrays.asList(DummySettingPlugin.class) : Collections.emptyList();
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            plugins.stream()
+        ).collect(Collectors.toSet());
     }
 
     public static class DummySettingPlugin extends Plugin {

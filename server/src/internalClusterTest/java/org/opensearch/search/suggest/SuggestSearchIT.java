@@ -49,6 +49,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.TemplateScript;
+import org.opensearch.search.aggregations.bucket.SignificantTermsSignificanceScoreIT;
 import org.opensearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.opensearch.search.suggest.phrase.Laplace;
 import org.opensearch.search.suggest.phrase.LinearInterpolation;
@@ -71,6 +72,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -1224,7 +1227,10 @@ public class SuggestSearchIT extends ParameterizedStaticSettingsOpenSearchIntegT
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(DummyTemplatePlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DummyTemplatePlugin.class)
+        ).collect(Collectors.toSet());
     }
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
