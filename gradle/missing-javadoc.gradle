@@ -165,7 +165,12 @@ configure([
   project(":plugins:engine-datafusion"), //TODO
   project(":server"),
   project(":modules:parquet-data-format"),
-  project(":modules:parquet-data-format:benchmarks")
+  project(":modules:parquet-data-format:benchmarks"),
+  project(":sandbox:plugins:test-ppl-frontend"),
+  project(":sandbox:plugins:analytics-backend-datafusion"),
+  project(":sandbox:libs:analytics-framework"),
+  project(":sandbox:plugins:analytics-engine"),
+  project(":sandbox:plugins:analytics-backend-lucene")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
     isExcluded = true
