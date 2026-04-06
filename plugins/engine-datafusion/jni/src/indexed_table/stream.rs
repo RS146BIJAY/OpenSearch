@@ -191,13 +191,18 @@ impl IndexReader {
         // Filter out deleted docs
         let live_docs = collector.collect_live_docs(min_doc, max_doc)?;
         if let Some(ref ld) = live_docs {
+            let pre_popcount: usize = bitset.iter().map(|w| w.count_ones() as usize).sum();
             let len = bitset.len().min(ld.len());
             for i in 0..len {
                 bitset[i] &= ld[i];
             }
+            let post_popcount: usize = bitset.iter().map(|w| w.count_ones() as usize).sum();
+            eprintln!("[RUST] live_docs rg={}: before={}, after={}, deleted={}", rg_idx, pre_popcount, post_popcount, pre_popcount - post_popcount);
+        } else {
+            eprintln!("[RUST] live_docs rg={}: bitset is null, all docs are live", rg_idx);
         }
 
-        eprintln!("[INDEXED-DEBUG] fetch_row_group rg={}: min_doc={}, max_doc={}, bitset_words={}, bitset_popcount={}", 
+        eprintln!("[INDEXED-DEBUG] fetch_row_group rg={}: min_doc={}, max_doc={}, bitset_words={}, bitset_popcount={}",
             rg_idx, min_doc, max_doc, bitset.len(),
             bitset.iter().map(|w| w.count_ones() as usize).sum::<usize>());
 
@@ -262,11 +267,11 @@ impl IndexReader {
 
         let (tx, rx) = oneshot::channel();
 
-        eprintln!("[INDEXED-DEBUG] start_prefetch rg={}: thread={:?}, is_tokio={}", 
+        eprintln!("[INDEXED-DEBUG] start_prefetch rg={}: thread={:?}, is_tokio={}",
             rg_idx, std::thread::current().name(), tokio::runtime::Handle::try_current().is_ok());
 
         tokio::task::spawn_blocking(move || {
-            eprintln!("[INDEXED-DEBUG] spawn_blocking running: thread={:?}, is_tokio={}", 
+            eprintln!("[INDEXED-DEBUG] spawn_blocking running: thread={:?}, is_tokio={}",
                 std::thread::current().name(), tokio::runtime::Handle::try_current().is_ok());
             let result = Self::fetch_row_group(
                 &collector,
@@ -435,7 +440,7 @@ impl ExecutionPlan for IndexedExec {
         _partition: usize,
         _context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        eprintln!("[INDEXED-DEBUG] IndexedExec.execute: thread={:?}, is_tokio={}", 
+        eprintln!("[INDEXED-DEBUG] IndexedExec.execute: thread={:?}, is_tokio={}",
             std::thread::current().name(), tokio::runtime::Handle::try_current().is_ok());
         let collector = {
             let mut guard = self.collector.lock().unwrap();
@@ -563,7 +568,7 @@ impl Stream for IndexedStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if !self.initialized {
-            eprintln!("[INDEXED-DEBUG] IndexedStream.poll_next init: thread={:?}, is_tokio={}", 
+            eprintln!("[INDEXED-DEBUG] IndexedStream.poll_next init: thread={:?}, is_tokio={}",
                 std::thread::current().name(), tokio::runtime::Handle::try_current().is_ok());
             self.index_reader.init_prefetch();
             self.initialized = true;
