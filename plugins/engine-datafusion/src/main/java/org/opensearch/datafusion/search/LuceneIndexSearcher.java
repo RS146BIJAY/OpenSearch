@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 
 import java.util.List;
 import java.util.Map;
@@ -65,12 +66,14 @@ public class LuceneIndexSearcher {
         final int partitionMinDocId;
         final int partitionMaxDocId;
         int currentDoc;
+        final Bits liveDocs;
 
-        PartitionScorerContext(DocIdSetIterator iterator, int minDocId, int maxDocId) {
+        PartitionScorerContext(DocIdSetIterator iterator, int minDocId, int maxDocId, Bits liveDocs) {
             this.iterator = iterator;
             this.partitionMinDocId = minDocId;
             this.partitionMaxDocId = maxDocId;
             this.currentDoc = -1;
+            this.liveDocs = liveDocs;
         }
     }
 
@@ -135,8 +138,9 @@ public class LuceneIndexSearcher {
             }
 
             DocIdSetIterator iterator = scorer.iterator();
+            Bits liveDocs = leafContext.reader().getLiveDocs();
             long id = nextId.getAndIncrement();
-            activePartitionScorers.put(id, new PartitionScorerContext(iterator, minDocId, maxDocId));
+            activePartitionScorers.put(id, new PartitionScorerContext(iterator, minDocId, maxDocId, liveDocs));
             return id;
 
         } catch (Exception e) {
@@ -189,6 +193,41 @@ public class LuceneIndexSearcher {
 
         } catch (Exception e) {
             logger.error("Error in getNextRowGroupDocs: {}", e.getMessage());
+        }
+
+        return bitSet.toLongArray();
+    }
+
+    /**
+     * Get live docs bitset for a doc range within a partition.
+     * Called by Rust's JniSegmentCollector.collect_live_docs().
+     *
+     * Returns null if all docs are live (no deletions in this segment).
+     * Otherwise returns a long[] bitset where each bit corresponds to a
+     * doc ID relative to effectiveMin — same format as getNextRowGroupDocs.
+     */
+    public static long[] getPartitionLiveDocs(long scorerPointer, int minDoc, int maxDoc) {
+        PartitionScorerContext context = activePartitionScorers.get(scorerPointer);
+        if (context == null) {
+            return new long[0];
+        }
+
+        if (context.liveDocs == null) {
+            return null; // all docs are live
+        }
+
+        int effectiveMin = Math.max(minDoc, context.partitionMinDocId);
+        int effectiveMax = Math.min(maxDoc, context.partitionMaxDocId);
+
+        if (effectiveMin >= effectiveMax) {
+            return new long[0];
+        }
+
+        java.util.BitSet bitSet = new java.util.BitSet(effectiveMax - effectiveMin);
+        for (int docId = effectiveMin; docId < effectiveMax; docId++) {
+            if (context.liveDocs.get(docId)) {
+                bitSet.set(docId - effectiveMin);
+            }
         }
 
         return bitSet.toLongArray();

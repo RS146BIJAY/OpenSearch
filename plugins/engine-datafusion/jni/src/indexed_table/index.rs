@@ -28,6 +28,13 @@ pub trait RowGroupDocsCollector: Send + Sync + Debug {
     /// The collector may be called multiple times with increasing ranges
     /// (forward-only iteration).
     fn collect(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String>;
+
+    /// Collect live docs bitset for `[min_doc, max_doc)`.
+    ///
+    /// Returns `Ok(None)` if all docs are live (no deletions).
+    /// Otherwise returns a bitset in the same format as `collect` —
+    /// each set bit represents a live (non-deleted) doc ID relative to `min_doc`.
+    fn collect_live_docs(&self, min_doc: i32, max_doc: i32) -> Result<Option<Vec<u64>>, String>;
 }
 
 /// A searcher scoped to a single shard (index), created once per query.
