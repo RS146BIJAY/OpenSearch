@@ -282,7 +282,6 @@ impl TableProvider for IndexedTableProvider {
             force_strategy: self.force_strategy,
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::new(std::sync::Mutex::new(Vec::new())),
-            live_docs_factory: self.live_docs_factory.clone(),
         }))
     }
 
@@ -425,7 +424,6 @@ impl ExecutionPlan for QueryShardExec {
         let bitset_mode = self.bitset_mode;
         let force_pushdown = self.force_pushdown;
         let force_strategy = self.force_strategy;
-        let live_docs_factory = self.live_docs_factory.clone();
 
         let stream_metrics =
             pm.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
