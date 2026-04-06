@@ -205,4 +205,49 @@ impl RowGroupDocsCollector for JniSegmentCollector {
 
         Ok(buf.iter().map(|&v| v as u64).collect())
     }
+
+    fn collect_live_docs(&self, min_doc: i32, max_doc: i32) -> Result<Option<Vec<u64>>, String> {
+        let mut env = self
+            .jvm
+            .attach_current_thread()
+            .map_err(|e| format!("Failed to attach thread: {}", e))?;
+
+        let class: &JClass = self.class_ref.as_obj().into();
+
+        let result = env
+            .call_static_method(
+                class,
+                "getPartitionLiveDocs",
+                "(JII)[J",
+                &[
+                    JValue::Long(self.scorer_ptr),
+                    JValue::Int(min_doc),
+                    JValue::Int(max_doc),
+                ],
+            )
+            .map_err(|e| format!("getPartitionLiveDocs failed: {}", e))?;
+
+        let array_obj = result
+            .l()
+            .map_err(|e| format!("Failed to get array: {}", e))?;
+
+        if array_obj.is_null() {
+            return Ok(None); // all docs are live
+        }
+
+        let long_array = unsafe { jni::objects::JLongArray::from_raw(array_obj.as_raw()) };
+        let len = env
+            .get_array_length(&long_array)
+            .map_err(|e| format!("Failed to get array length: {}", e))? as usize;
+
+        if len == 0 {
+            return Ok(Some(Vec::new()));
+        }
+
+        let mut buf = vec![0i64; len];
+        env.get_long_array_region(&long_array, 0, &mut buf)
+            .map_err(|e| format!("Failed to get array region: {}", e))?;
+
+        Ok(Some(buf.iter().map(|&v| v as u64).collect()))
+    }
 }

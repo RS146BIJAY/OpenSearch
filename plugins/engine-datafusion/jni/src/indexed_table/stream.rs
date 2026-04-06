@@ -186,7 +186,16 @@ impl IndexReader {
         let t_lucene = std::time::Instant::now();
 
         // Collect bitset from the single collector
-        let bitset = collector.collect(min_doc, max_doc)?;
+        let mut bitset = collector.collect(min_doc, max_doc)?;
+
+        // Filter out deleted docs
+        let live_docs = collector.collect_live_docs(min_doc, max_doc)?;
+        if let Some(ref ld) = live_docs {
+            let len = bitset.len().min(ld.len());
+            for i in 0..len {
+                bitset[i] &= ld[i];
+            }
+        }
 
         eprintln!("[INDEXED-DEBUG] fetch_row_group rg={}: min_doc={}, max_doc={}, bitset_words={}, bitset_popcount={}", 
             rg_idx, min_doc, max_doc, bitset.len(),
