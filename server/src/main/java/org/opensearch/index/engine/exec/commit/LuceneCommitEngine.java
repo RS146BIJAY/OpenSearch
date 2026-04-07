@@ -195,7 +195,7 @@ public class LuceneCommitEngine implements Closeable {
 
     private void deleteExplicitlyDeletedDocs(List<Term> explicitDeleteTerms) throws IOException {
         if (!explicitDeleteTerms.isEmpty()) {
-            logger.trace("[COMMIT_DEBUG] Deleting {} explicitly deleted docs after addIndexes",
+            logger.info("[COMMIT_DEBUG] Deleting {} explicitly deleted docs after addIndexes",
                 explicitDeleteTerms.size());
             indexWriter.deleteDocuments(explicitDeleteTerms.toArray(new Term[0]));
         }
