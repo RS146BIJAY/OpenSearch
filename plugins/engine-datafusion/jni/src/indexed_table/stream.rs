@@ -41,6 +41,7 @@ use super::index::{BitsetMode, RowGroupDocsCollector};
 use super::metrics::StreamMetrics;
 use super::page_pruner::PagePruner;
 use super::parquet_bridge::{self, RowGroupStreamConfig};
+use vectorized_exec_spi::{log_info};
 
 /// Row group metadata.
 #[derive(Debug, Clone)]
@@ -197,12 +198,12 @@ impl IndexReader {
                 bitset[i] &= ld[i];
             }
             let post_popcount: usize = bitset.iter().map(|w| w.count_ones() as usize).sum();
-            eprintln!("[RUST] live_docs rg={}: before={}, after={}, deleted={}", rg_idx, pre_popcount, post_popcount, pre_popcount - post_popcount);
+            log_info!("[RUST] live_docs rg={}: before={}, after={}, deleted={}", rg_idx, pre_popcount, post_popcount, pre_popcount - post_popcount);
         } else {
-            eprintln!("[RUST] live_docs rg={}: bitset is null, all docs are live", rg_idx);
+            log_info!("[RUST] live_docs rg={}: bitset is null, all docs are live", rg_idx);
         }
 
-        eprintln!("[INDEXED-DEBUG] fetch_row_group rg={}: min_doc={}, max_doc={}, bitset_words={}, bitset_popcount={}",
+        log_info!("[INDEXED-DEBUG] fetch_row_group rg={}: min_doc={}, max_doc={}, bitset_words={}, bitset_popcount={}",
             rg_idx, min_doc, max_doc, bitset.len(),
             bitset.iter().map(|w| w.count_ones() as usize).sum::<usize>());
 

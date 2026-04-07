@@ -106,7 +106,7 @@ public class LuceneCommitEngine implements Closeable {
         }
 
         Map<BytesRef, LuceneWriter.DeleteEntry> entriesByDocId = deduplicateByDocId(pendingDeletes);
-        logger.trace("[COMMIT_DEBUG] Staged deletes: {} total, {} unique ids",
+        logger.info("[COMMIT_DEBUG] Staged deletes: {} total, {} unique ids",
             pendingDeletes.size(), entriesByDocId.size());
 
         List<Term> explicitDeleteTerms = new ArrayList<>();
@@ -122,7 +122,7 @@ public class LuceneCommitEngine implements Closeable {
 
         List<Term> staleParentTerms = findStaleParentVersions(updateDeleteEntries);
         if (!staleParentTerms.isEmpty()) {
-            logger.trace("[COMMIT_DEBUG] Deleting {} stale parent versions before addIndexes", staleParentTerms.size());
+            logger.info("[COMMIT_DEBUG] Deleting {} stale parent versions before addIndexes", staleParentTerms.size());
             indexWriter.deleteDocuments(staleParentTerms.toArray(new Term[0]));
         }
 
@@ -195,7 +195,7 @@ public class LuceneCommitEngine implements Closeable {
 
     private void deleteExplicitlyDeletedDocs(List<Term> explicitDeleteTerms) throws IOException {
         if (!explicitDeleteTerms.isEmpty()) {
-            logger.trace("[COMMIT_DEBUG] Deleting {} explicitly deleted docs after addIndexes",
+            logger.info("[COMMIT_DEBUG] Deleting {} explicitly deleted docs after addIndexes",
                 explicitDeleteTerms.size());
             indexWriter.deleteDocuments(explicitDeleteTerms.toArray(new Term[0]));
         }

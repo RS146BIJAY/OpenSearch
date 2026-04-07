@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -112,7 +113,7 @@ public class LuceneExecutionEngine implements IndexingExecutionEngine<LuceneData
         if (primaryMode) {
             IndexWriterConfig iwc = new IndexWriterConfig();
             iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
-            iwc.setMergePolicy(new TieredMergePolicy());
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setMergeScheduler(new ConcurrentMergeScheduler());
             iwc.setParentField(null);
 

@@ -134,6 +134,7 @@ public class LuceneIndexSearcher {
             Scorer scorer = shardCtx.weight.scorer(leafContext);
             logger.info("scorer took : {} ms for : {}, {}, {} " , (System.nanoTime() - st) / 1_000_000, segmentOrd, minDocId,maxDocId);
             if (scorer == null) {
+                logger.info("got no document by scorer.");
                 return -1;  // No matches in this segment
             }
 
