@@ -54,7 +54,7 @@ public final class InternalSettingsPlugin extends Plugin {
     );
     public static final Setting<Boolean> MERGE_ENABLED = Setting.boolSetting(
         "index.merge.enabled",
-        true,
+        false,
         Property.IndexScope,
         Property.NodeScope
     );
