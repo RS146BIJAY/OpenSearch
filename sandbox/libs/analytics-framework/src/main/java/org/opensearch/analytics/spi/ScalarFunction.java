@@ -61,6 +61,7 @@ public enum ScalarFunction {
     WILDCARD(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP_CONTAINS(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCHALL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
     // ── String ───────────────────────────────────────────────────────
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),

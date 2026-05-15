@@ -12,6 +12,7 @@ import org.apache.calcite.rex.RexCall;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.be.lucene.serializers.MatchAllSerializer;
 import org.opensearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
@@ -37,7 +38,8 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.MATCH_PHRASE_PREFIX, QuerySerializerRegistry::serializeMatchPhrasePrefix),
         Map.entry(ScalarFunction.MULTI_MATCH, QuerySerializerRegistry::serializeMultiMatch),
         Map.entry(ScalarFunction.QUERY_STRING, QuerySerializerRegistry::serializeQueryString),
-        Map.entry(ScalarFunction.SIMPLE_QUERY_STRING, QuerySerializerRegistry::serializeSimpleQueryString)
+        Map.entry(ScalarFunction.SIMPLE_QUERY_STRING, QuerySerializerRegistry::serializeSimpleQueryString),
+        Map.entry(ScalarFunction.MATCHALL, new MatchAllSerializer())
     );
 
     private QuerySerializerRegistry() {}

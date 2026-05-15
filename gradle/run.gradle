@@ -93,6 +93,10 @@ testClusters {
         if (p.equals("parquet-data-format") || p.equals("analytics-backend-datafusion")) {
           // Composite engine / DataFusion requires pluggable dataformat feature flag
           systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+          // analytics-engine (pulled in transitively) requires the streaming transport —
+          // fragment dispatch is streaming-only, so AnalyticsSearchTransportService
+          // depends on StreamTransportService at Guice creation time.
+          systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
           // Native lib path for DataFusion FFM bridge
           def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/release').absolutePath
           systemProperty 'java.library.path', nativeLibDir

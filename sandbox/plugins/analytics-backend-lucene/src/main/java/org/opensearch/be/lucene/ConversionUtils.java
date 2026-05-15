@@ -29,7 +29,7 @@ import java.util.List;
  * {@code func(MAP('field', $ref), MAP('query', literal), [MAP('param', literal)]...)}
  * Each MAP has exactly 2 operands: key at index 0, value at index 1.
  */
-final class ConversionUtils {
+public final class ConversionUtils {
 
     /** MAP key for single-field relevance operands. */
     static final String KEY_FIELD = "field";
@@ -77,7 +77,7 @@ final class ConversionUtils {
     /**
      * Serializes a QueryBuilder into bytes using NamedWriteable protocol.
      */
-    static byte[] serializeQueryBuilder(QueryBuilder queryBuilder) {
+    public static byte[] serializeQueryBuilder(QueryBuilder queryBuilder) {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(queryBuilder);
             return BytesReference.toBytes(output.bytes());
@@ -90,7 +90,7 @@ final class ConversionUtils {
      * Extracts the key string from a MAP_VALUE_CONSTRUCTOR operand: MAP('key', value).
      * Returns null if the operand is not a MAP or the key is not a string literal.
      */
-    static String extractMapKey(RexCall call, int operandIndex) {
+    public static String extractMapKey(RexCall call, int operandIndex) {
         RexNode operand = call.getOperands().get(operandIndex);
         if (operand instanceof RexCall mapCall && mapCall.getOperands().size() >= 2) {
             RexNode key = mapCall.getOperands().get(0);
@@ -118,7 +118,7 @@ final class ConversionUtils {
      * @param fieldStorage per-column storage metadata for resolving field names
      * @return extracted operands
      */
-    static RelevanceOperands extractRelevanceOperands(RexCall call, List<FieldStorageInfo> fieldStorage) {
+    public static RelevanceOperands extractRelevanceOperands(RexCall call, List<FieldStorageInfo> fieldStorage) {
         String fieldName = null;
         List<String> fields = null;
         String query = null;
@@ -163,7 +163,7 @@ final class ConversionUtils {
      *
      * <p>TODO: extract per-field boost values and return them alongside field names.
      */
-    static List<String> extractFieldsFromRelevanceMap(RexCall call, int operandIndex, List<FieldStorageInfo> fieldStorage) {
+    public static List<String> extractFieldsFromRelevanceMap(RexCall call, int operandIndex, List<FieldStorageInfo> fieldStorage) {
         RexNode operand = call.getOperands().get(operandIndex);
         List<String> fields = new ArrayList<>();
         if (operand instanceof RexCall outerMapCall) {
