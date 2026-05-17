@@ -12,33 +12,31 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Immutable input data for a delete operation, containing the field name, value,
+ * Immutable input data for a delete operation, containing the field name, term,
  * and writer generation needed to identify and delete a document.
  *
  * <p>The {@link org.apache.lucene.index.Term} uid is constructed by the deleter
- * implementation from the field name and value provided here.
+ * implementation from the field name and term provided here.
  *
  * @param fieldName the name of the field used to identify the document (e.g. "_id")
- * @param value the field value identifying the document to delete
- * @param generation the writer generation whose deleter should handle to delete
+ * @param id the field id identifying the document to delete
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record DeleteInput(String fieldName, BytesRef value, long generation) {
+public record DeleteInput(String fieldName, String id, long generation) {
 
     /**
      * Creates a new DeleteInput.
      *
      * @param fieldName the field name (must not be null)
-     * @param value the bytes ref value (must not be null)
-     * @param generation the writer generation
+     * @param id the id of document being deleted. (must not be null)
      */
     public DeleteInput {
         if (fieldName == null) {
             throw new IllegalArgumentException("fieldName must not be null");
         }
-        if (value == null) {
-            throw new IllegalArgumentException("value must not be null");
+        if (id == null || id.isEmpty()) {
+            throw new IllegalArgumentException("term must not be null");
         }
     }
 }

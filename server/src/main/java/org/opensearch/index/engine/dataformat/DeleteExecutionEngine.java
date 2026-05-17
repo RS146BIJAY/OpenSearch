@@ -8,10 +8,12 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Engine for executing delete operations for a specific data format.
@@ -60,9 +62,13 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
      * Deletes a document by looking up the deleter for the generation specified
      * in the input and delegating the delete operation.
      *
-     * @param deleteInput the input containing field name, value, and generation
+     * @param deleteInput the input containing field name, term, and generation
      * @return the result of the delete operation
      * @throws IOException if an I/O error occurs during deletion
      */
     DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException;
+
+    default void recordWrite(BytesRef id, long generation) { /* no-op */ }
+
+    default void purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException { /* no-op */ }
 }

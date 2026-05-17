@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -23,6 +24,8 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.queue.DefaultLockableHolder;
 import org.opensearch.common.queue.LockablePool;
 import org.opensearch.common.unit.TimeValue;
@@ -35,6 +38,8 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -66,7 +71,9 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
@@ -94,6 +101,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -105,6 +113,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -138,6 +147,7 @@ public class DataFormatAwareEngine implements Indexer {
     private final IndexingExecutionEngine indexingExecutionEngine;
     private final DeleteExecutionEngine<?> deleteExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final DeletionStrategyPlanner deletionStrategyPlanner;
     private final LockablePool<DefaultLockableHolder<Writer<?>>> writerPool;
     private final AtomicLong writerGenerationCounter;
 
@@ -157,11 +167,13 @@ public class DataFormatAwareEngine implements Indexer {
     // Throttling
     private final IndexingThrottler throttle;
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
+    private final CounterMetric numVersionLookups = new CounterMetric();
 
     // Timestamps and seq-no markers
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private volatile long lastWriteNanos = System.nanoTime();
+    private final CounterMetric numDocDeletes = new CounterMetric();
 
     // Lifecycle
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -181,6 +193,8 @@ public class DataFormatAwareEngine implements Indexer {
 
     // Merge
     private final MergeScheduler mergeScheduler;
+
+    private final LiveVersionMap versionMap;
 
     /**
      * System property to enable or disable pluggable dataformat merge operations.
@@ -206,6 +220,7 @@ public class DataFormatAwareEngine implements Indexer {
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
         this.throttle = new IndexingThrottler();
+        this.versionMap = new LiveVersionMap();
 
         List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
         if (engineConfig.getInternalRefreshListener() != null) {
@@ -342,15 +357,24 @@ public class DataFormatAwareEngine implements Indexer {
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig.getIndexSettings(),
                 engineConfig.getShardId(),
-                new LiveVersionMap(),
+                this.versionMap,
                 maxUnsafeAutoIdTimestamp::get,
                 () -> 0L,
                 localCheckpointTracker::getProcessedCheckpoint,
                 this::hasBeenProcessedBefore,
                 op -> OpVsEngineDocStatus.OP_NEWER,
-                (a, b) -> null,
+                this::resolveDocVersion,
                 this::updateAutoIdTimestamp,
                 (a, b) -> null
+            );
+            this.deletionStrategyPlanner = new DeletionStrategyPlanner(
+                engineConfig.getIndexSettings(),
+                engineConfig.getShardId(),
+                this::hasBeenProcessedBefore,
+                op -> OpVsEngineDocStatus.OP_NEWER,
+                this::resolveDocVersion,
+                (a, b) -> null,
+                this::incrementVersionLookup
             );
             // All critical engine components must be initialized before the engine is considered ready
             assert translogManager != null : "translog manager must be initialized";
@@ -496,7 +520,10 @@ public class DataFormatAwareEngine implements Indexer {
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            try (Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}) {
+            try (
+                Releasable ignored1 = versionMap.acquireLock(index.uid().bytes());
+                Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}
+            ) {
                 lastWriteNanos = index.startTime();
                 final IndexingStrategy plan;
                 if (index.origin() == Engine.Operation.Origin.PRIMARY) {
@@ -568,6 +595,7 @@ public class DataFormatAwareEngine implements Indexer {
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
         Writer currentWriter = null;
+        long writerGeneration = -1;
         long mappingVersion = currentMappingVersion();
         DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock(
             h -> h.get().isSchemaMutable() || h.get().mappingVersion() >= mappingVersion
@@ -580,9 +608,10 @@ public class DataFormatAwareEngine implements Indexer {
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
-
+            deleteExecutionEngine.recordWrite(index.uid().bytes(), currentWriter.generation());
             if (result instanceof WriteResult.Success) {
                 indexResult = new Engine.IndexResult(plan.version, index.primaryTerm(), index.seqNo(), true);
+                writerGeneration = currentWriter.generation();
                 // The result must carry the same seq no that was assigned to the operation
                 assert indexResult.getSeqNo() == index.seqNo() : "IndexResult seq no ["
                     + indexResult.getSeqNo()
@@ -605,6 +634,10 @@ public class DataFormatAwareEngine implements Indexer {
             final Translog.Location location;
             if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                 location = translogManager.add(new Translog.Index(index, indexResult));
+                versionMap.maybePutIndexUnderLock(
+                    index.uid().bytes(),
+                    new IndexVersionValue(location, plan.version, index.seqNo(), index.primaryTerm())
+                );
             } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
                 && indexResult.getFailure() != null
                 && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
@@ -642,7 +675,157 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public Engine.DeleteResult delete(Engine.Delete delete) throws IOException {
-        throw new UnsupportedEncodingException("delete operation not supported.");
+        versionMap.enforceSafeAccess();
+        assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
+        assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
+        final Engine.DeleteResult deleteResult;
+        int reservedDocs = 0;
+        // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
+            ensureOpen();
+            lastWriteNanos = delete.startTime();
+            final DeletionStrategy plan = deletionStrategyForOperation(delete);
+            reservedDocs = plan.reservedDocs;
+            if (plan.earlyResultOnPreFlightError.isPresent()) {
+                assert delete.origin() == Engine.Operation.Origin.PRIMARY : delete.origin();
+                deleteResult = (Engine.DeleteResult) plan.earlyResultOnPreFlightError.get();
+            } else {
+                // generate or register sequence number
+                if (delete.origin() == Engine.Operation.Origin.PRIMARY) {
+                    delete = new Engine.Delete(
+                        delete.id(),
+                        delete.uid(),
+                        generateSeqNoForOperationOnPrimary(delete),
+                        delete.primaryTerm(),
+                        delete.version(),
+                        delete.versionType(),
+                        delete.origin(),
+                        delete.startTime(),
+                        delete.getIfSeqNo(),
+                        delete.getIfPrimaryTerm()
+                    );
+
+                    advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
+                } else {
+                    markSeqNoAsSeen(delete.seqNo());
+                }
+
+                assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
+
+                if (plan.executeOpOnEngine || plan.addStaleOpToEngine) {
+                    deleteResult = deleteInEngine(delete, plan);
+                    if (plan.executeOpOnEngine) {
+                        numDocDeletes.inc();
+                        versionMap.putDeleteUnderLock(
+                            delete.uid().bytes(),
+                            new DeleteVersionValue(
+                                plan.version,
+                                delete.seqNo(),
+                                delete.primaryTerm(),
+                                engineConfig.getThreadPool().relativeTimeInMillis()
+                            )
+                        );
+                    }
+                } else {
+                    deleteResult = new Engine.DeleteResult(plan.version, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+                }
+            }
+            if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Engine.Result.Type.SUCCESS) {
+                final Translog.Location location = translogManager.add(new Translog.Delete(delete, deleteResult));
+                deleteResult.setTranslogLocation(location);
+            }
+            localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
+            if (deleteResult.getTranslogLocation() == null) {
+                // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
+                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
+            }
+            deleteResult.setTook(System.nanoTime() - delete.startTime());
+            deleteResult.freeze();
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("delete", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+        maybePruneDeletes();
+        return deleteResult;
+    }
+
+    private Engine.DeleteResult deleteInEngine(Engine.Delete delete, DeletionStrategy plan) throws IOException {
+        assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
+        long mappingVersion = currentMappingVersion();
+        DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock(
+            h -> h.get().isSchemaMutable() || h.get().mappingVersion() >= mappingVersion
+        );
+
+        Writer currentWriter = null;
+        try {
+            currentWriter = lockedWriter.get();
+            currentWriter.updateMappingVersion(mappingVersion);
+            // Writer pool must never return null — it creates on demand via the supplier
+            assert currentWriter != null : "writer pool returned null writer";
+
+            DeleteResult deleteResult = deleteExecutionEngine.deleteDocument(new DeleteInput(IdFieldMapper.NAME, delete.id(), currentWriter.generation()));
+            if (deleteResult instanceof DeleteResult.Success) {
+                return new Engine.DeleteResult(plan.version, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+            } else {
+                DeleteResult.Failure f = (DeleteResult.Failure) deleteResult;
+                return new Engine.DeleteResult(f.cause(), plan.version, delete.primaryTerm(), delete.seqNo(), false);
+            }
+        } finally {
+            if (currentWriter != null) {
+                writerPool.releaseAndUnlock(lockedWriter);
+            }
+        }
+    }
+
+    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+    }
+
+    protected DeletionStrategy deletionStrategyForOperation(final Engine.Delete delete) throws IOException {
+        if (delete.origin() == Engine.Operation.Origin.PRIMARY) {
+            return planDeletionAsPrimary(delete);
+        } else {
+            // non-primary mode (i.e., replica or recovery)
+            return planDeletionAsNonPrimary(delete);
+        }
+    }
+
+    protected final DeletionStrategy planDeletionAsNonPrimary(Engine.Delete delete) throws IOException {
+        assert assertNonPrimaryOrigin(delete);
+        return deletionStrategyPlanner.planOperationAsNonPrimary(delete);
+    }
+
+    private DeletionStrategy planDeletionAsPrimary(Engine.Delete delete) throws IOException {
+        return deletionStrategyPlanner.planOperationAsPrimary(delete);
+    }
+
+    protected boolean assertNonPrimaryOrigin(final Engine.Operation operation) {
+        assert operation.origin() != Engine.Operation.Origin.PRIMARY : "planing as primary but got " + operation.origin();
+        return true;
+    }
+
+    private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
+        final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+        // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
+        if (allowDeleted) {
+            final VersionValue versionValue = versionMap.getVersionForAssert(id.bytes());
+            if (versionValue != null && versionValue.isDelete()) {
+                return true;
+            }
+        }
+        // Operations can be processed on a replica in a different order than on the primary. If the order on the primary is index-1,
+        // delete-2, index-3, and the order on a replica is index-1, index-3, delete-2, then the msu of index-3 on the replica is 2
+        // even though it is an update (overwrites index-1). We should relax this assertion if there is a pending gap in the seq_no.
+        if (relaxIfGapInSeqNo && localCheckpointTracker.getProcessedCheckpoint() < maxSeqNoOfUpdates) {
+            return true;
+        }
+        assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
+        return true;
     }
 
     /**
@@ -725,7 +908,9 @@ public class DataFormatAwareEngine implements Indexer {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
-        throw new UnsupportedOperationException("delete operation not supported.");
+        long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     /**
@@ -749,6 +934,9 @@ public class DataFormatAwareEngine implements Indexer {
             refreshLock.lock();
             try (GatedCloseable<CatalogSnapshot> catalogSnapshot = catalogSnapshotManager.acquireSnapshot()) {
                 if (store.tryIncRef()) {
+                    // Rotate the version map so new writes go to a fresh map while refresh is in progress.
+                    // afterRefresh will drop the old map once the new snapshot makes those versions resolvable.
+                    versionMap.beforeRefresh();
                     try {
                         List<DefaultLockableHolder<Writer<?>>> writers = writerPool.checkoutAll();
                         List<Segment> existingSegments = catalogSnapshot.get().getSegments();
@@ -789,6 +977,10 @@ public class DataFormatAwareEngine implements Indexer {
                             .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
                             : "new segment generation collides with an existing segment generation";
 
+                        deleteExecutionEngine.purgeGenerationsAndApplyDeleteToParent(
+                            writers.stream().map(writer -> writer.get().generation()).toList()
+                        );
+
                         // refresh only if new segments have been created or force param is true
                         notifyRefreshListenersBefore();
                         if (refreshed) {
@@ -809,10 +1001,15 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                     if (refreshed) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                        versionMap.pruneTombstones(
+                            engineConfig.getThreadPool().relativeTimeInMillis() - engineConfig.getIndexSettings().getGcDeletesInMillis(),
+                            localCheckpointTracker.getProcessedCheckpoint()
+                        );
                         triggerPossibleMerges(); // trigger merges
                     }
                 }
             } finally {
+                System.out.println("Closing writer");
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
@@ -1088,7 +1285,11 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        throw new UnsupportedOperationException("updates/deletes not supported");
+        if (maxSeqNoOfUpdatesOnPrimary == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert false : "max_seq_no_of_updates on primary is unassigned";
+            throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
+        }
+        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
     }
 
     @Override
@@ -1489,6 +1690,46 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /** resolves the current version of the document, returning null if not found */
+    protected VersionValue resolveDocVersion(final Engine.Operation op, boolean loadSeqNo) throws IOException {
+        assert incrementVersionLookup(); // used for asserting in tests
+        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
+        if (versionValue == null) {
+
+        } else if (engineConfig.isEnableGcDeletes()
+            && versionValue.isDelete()
+            && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) versionValue).time) > getGcDeletesInMillis()) {
+            versionValue = null;
+        }
+
+        //TODO: Add CAS support here by not allowing criteria update.
+        return versionValue;
+    }
+
+    private boolean incrementVersionLookup() { // only used by asserts
+        numVersionLookups.inc();
+        return true;
+    }
+
+    long getGcDeletesInMillis() {
+        return engineConfig.getIndexSettings().getGcDeletesInMillis();
+    }
+
+    private VersionValue getVersionFromMap(BytesRef id) {
+        if (versionMap.isUnsafe()) {
+            synchronized (versionMap) {
+                // we are switching from an unsafe map to a safe map. This might happen concurrently
+                // but we only need to do this once since the last operation per ID is to add to the version
+                // map so once we pass this point we can safely lookup from the version map.
+                if (versionMap.isUnsafe()) {
+                    refresh("unsafe_version_map");
+                }
+                versionMap.enforceSafeAccess();
+            }
+        }
+        return versionMap.getUnderLock(id);
+    }
+
     private long currentMappingVersion() {
         return engineConfig.getMapperService().getIndexSettings().getIndexMetadata().getMappingVersion();
     }
@@ -1511,6 +1752,16 @@ public class DataFormatAwareEngine implements Indexer {
             return true;
         }
         return false;
+    }
+
+    private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+        if (origin == Engine.Operation.Origin.PRIMARY) {
+            assert assertPrimaryIncomingSequenceNumber(origin, seqNo);
+        } else {
+            // sequence number should be set when operation origin is not primary
+            assert seqNo >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + origin;
+        }
+        return true;
     }
 
     boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
@@ -1593,6 +1844,14 @@ public class DataFormatAwareEngine implements Indexer {
                 throw new RuntimeException("Failed to release catalog snapshot reference", e);
             }
         }
+    }
+
+    /**
+     * Returns the number of documents have been deleted since this engine was opened.
+     * This count does not include the deletions from the existing segments before opening engine.
+     */
+    long getNumDocDeletes() {
+        return numDocDeletes.count();
     }
 
 }

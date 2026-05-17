@@ -81,7 +81,7 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING = Setting.boolSetting(
         PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
-        false,
+        true,
         Property.NodeScope
     );
 

@@ -8,11 +8,13 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.lucene.index.Term;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.queue.Lockable;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Queue;
 
 /**
  * Handles document deletion for a specific data format. Each deleter is paired with a
@@ -26,7 +28,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Deleter extends Closeable, Lockable {
+public interface Deleter extends Closeable {
 
     /**
      * Returns the generation number of this deleter, matching its paired writer.
@@ -38,9 +40,13 @@ public interface Deleter extends Closeable, Lockable {
     /**
      * Deletes a document from the underlying format-specific storage.
      *
-     * @param deleteInput the input containing field name, value, and generation to identify the document
+     * @param deleteInput the input containing field name, term, and generation to identify the document
      * @return the result of the delete operation
      * @throws IOException if an I/O error occurs
      */
     DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException;
+
+    Queue<String> bufferedDeletes();
+
+    void recordBufferedDeletes(String id);
 }
