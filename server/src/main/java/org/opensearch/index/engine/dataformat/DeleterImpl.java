@@ -32,6 +32,7 @@ public class DeleterImpl<T extends Writer<?>> implements Deleter {
     private final ReleasableLock deleterReadLock;
     private final ReleasableLock deleterWriteLock;
     private final Queue<String> bufferedDeletes = new ConcurrentLinkedQueue<>();
+    private volatile boolean active = true;
 
     public DeleterImpl(T writer) {
         this.writer = writer;
@@ -51,23 +52,47 @@ public class DeleterImpl<T extends Writer<?>> implements Deleter {
     @Override
     public DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException {
         try (ReleasableLock ignore = deleterReadLock.acquire()) {
+            if (active == false) {
+                return null;
+            }
+
             return writer.deleteDocument(deleteInput);
         }
     }
 
-    public void recordBufferedDeletes(String id) {
-        bufferedDeletes.add(id);
+    public boolean recordBufferedDeletes(String id) {
+        try (ReleasableLock ignore = deleterReadLock.acquire()) {
+            if (active == false) {
+                throw new IllegalStateException("Cannot record a delete on a closed deleter.");
+            }
+
+            bufferedDeletes.add(id);
+            return true;
+        }
     }
 
     // TODO: Revisit this.
     @Override
     public void close() throws IOException {
+        deactivate();
+    }
+
+    @Override
+    public Queue<String> deactivate() {
         try (ReleasableLock ignore = deleterWriteLock.acquire()) {
+            if (active == false) {
+                return new ConcurrentLinkedQueue<>();
+            }
+
+            active = false;
+            Queue<String> snapshot = new ConcurrentLinkedQueue<>(bufferedDeletes);
             bufferedDeletes.clear();
+            return snapshot;
         }
     }
 
-    public Queue<String> bufferedDeletes() {
-        return bufferedDeletes;
+    @Override
+    public boolean isActive() {
+        return active;
     }
 }

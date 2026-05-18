@@ -11,6 +11,7 @@ package org.opensearch.common.queue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
@@ -91,13 +92,13 @@ public class LockablePoolTests extends OpenSearchTestCase {
         pool.releaseAndUnlock(b);
 
         // a and b may be the same item (reuse), so pool may have 1 or 2 items
-        List<LockableEntry> all = pool.checkoutAll();
+        List<LockableEntry> all = pool.checkoutAll(item -> Collections.emptyList());
         assertFalse("checkoutAll should return at least one item", all.isEmpty());
     }
 
     public void testCheckoutAllOnEmptyPoolReturnsEmptyList() {
         LockablePool<LockableEntry> pool = createPool();
-        List<LockableEntry> all = pool.checkoutAll();
+        List<LockableEntry> all = pool.checkoutAll(item -> Collections.emptyList());
         assertTrue("checkoutAll on empty pool should return empty list", all.isEmpty());
     }
 
@@ -106,7 +107,7 @@ public class LockablePoolTests extends OpenSearchTestCase {
         LockableEntry item = pool.getAndLock();
         pool.releaseAndUnlock(item);
 
-        List<LockableEntry> all = pool.checkoutAll();
+        List<LockableEntry> all = pool.checkoutAll(itemWriter-> Collections.emptyList());
         expectThrows(UnsupportedOperationException.class, () -> all.add(new LockableEntry("rogue")));
     }
 
@@ -140,7 +141,7 @@ public class LockablePoolTests extends OpenSearchTestCase {
         LockablePool<LockableEntry> pool = createPool();
         pool.close();
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, pool::checkoutAll);
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> pool.checkoutAll(item -> {}));
         assertEquals("LockablePool is already closed", ex.getMessage());
     }
 
@@ -176,7 +177,7 @@ public class LockablePoolTests extends OpenSearchTestCase {
         LockableEntry fresh = pool.getAndLock(e -> !e.id.equals(item.id));
         pool.releaseAndUnlock(fresh);
 
-        List<LockableEntry> all = pool.checkoutAll();
+        List<LockableEntry> all = pool.checkoutAll(itemWriter -> Collections.emptyList());
         assertEquals(2, all.size());
         assertTrue(all.contains(item));
         assertTrue(all.contains(fresh));

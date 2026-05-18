@@ -270,8 +270,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // map. While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = maps.buildTransitionMap();
-        assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
+//        maps = maps.buildTransitionMap();
+//        assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
     }
@@ -285,8 +285,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
-        maps = maps.invalidateOldMap();
-        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
+//        maps = maps.invalidateOldMap();
+//        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
 
     }
 

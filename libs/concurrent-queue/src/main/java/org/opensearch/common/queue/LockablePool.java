@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -30,7 +31,7 @@ import java.util.function.Supplier;
  *   <li>{@link #getAndLock()} — returns any available item, or creates a new one</li>
  *   <li>{@link #getAndLock(Predicate)} — returns a compatible item (per predicate),
  *       rejecting incompatible ones. Rejected items are removed from the available queue
- *       but remain tracked by the pool and included in {@link #checkoutAll()}.</li>
+ *       but remain tracked by the pool.</li>
  * </ul>
  *
  * @param <T> the pooled item type, must implement {@link Lockable}
@@ -79,6 +80,22 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
         return Objects.requireNonNullElseGet(availableItems.lockAndPollWithRejects(isCompatible), this::fetchItem);
     }
 
+    public Closeable evaluateAllAndLock(Predicate<T> isCompatible) {
+        ensureOpen();
+        for (T item: this) {
+            if (isCompatible.test(item)) {
+                item.lock();
+                if (isRegistered(item)) {
+                    return item::unlock;
+                }
+
+                item.unlock();
+            }
+        }
+
+        return null;
+    }
+
     private synchronized T fetchItem() {
         ensureOpen();
         T item = itemSupplier.get();
@@ -100,10 +117,18 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
     /**
      * Lock and checkout all items from the pool.
      *
+     * <p>The callback observes the checked-out items in the same critical section
+     * as the removal: no other thread can poll, lock, or operate on them between
+     * the time they leave the pool and the time the callback returns. Use this
+     * when a side effect (e.g. removing a paired resource from another registry)
+     * must be atomic with the pool checkout.
+     *
+     * @param onCheckout callback invoked with the unmodifiable list of checked-out items
+     *                  while every item lock is still held by the current thread
      * @return unmodifiable list of all items locked by current thread
      * @throws IllegalStateException if the pool is closed
      */
-    public List<T> checkoutAll() {
+    public List<T> checkoutAll(Consumer<T> onCheckout) {
         ensureOpen();
         List<T> lockedItems = new ArrayList<>();
         List<T> checkedOutItems = new ArrayList<>();
@@ -116,6 +141,7 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
                 try {
                     if (isRegistered(item) && items.remove(item)) {
                         availableItems.remove(item);
+                        onCheckout.accept(item);
                         checkedOutItems.add(item);
                     }
                 } finally {

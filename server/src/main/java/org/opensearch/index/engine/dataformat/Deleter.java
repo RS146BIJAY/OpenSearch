@@ -46,7 +46,9 @@ public interface Deleter extends Closeable {
      */
     DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException;
 
-    Queue<String> bufferedDeletes();
+    Queue<String> deactivate();
 
-    void recordBufferedDeletes(String id);
+    boolean recordBufferedDeletes(String id);
+
+    boolean isActive();
 }

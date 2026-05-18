@@ -24,6 +24,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -83,7 +84,7 @@ public class LockablePoolBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public List<PoolEntry> refresh_7w1r() throws InterruptedException {
         Thread.sleep(1000);
-        return pool.checkoutAll();
+        return pool.checkoutAll(item -> Collections.emptyList());
     }
 
     @Benchmark
@@ -104,7 +105,7 @@ public class LockablePoolBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public List<PoolEntry> refresh_3w1r() throws InterruptedException {
         Thread.sleep(1000);
-        return pool.checkoutAll();
+        return pool.checkoutAll(item -> Collections.emptyList());
     }
 
     // ── Aggressive refresh: 10ms interval to stress checkoutAll Phase 3 ──
@@ -129,7 +130,7 @@ public class LockablePoolBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public List<PoolEntry> refresh_aggressive_7w1r() {
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
-        return pool.checkoutAll();
+        return pool.checkoutAll(item -> Collections.emptyList());
     }
 
     @Benchmark
@@ -150,7 +151,7 @@ public class LockablePoolBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public List<PoolEntry> refresh_aggressive_3w1r() {
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
-        return pool.checkoutAll();
+        return pool.checkoutAll(item -> Collections.emptyList());
     }
 
     // ── Writer latency during refresh contention (sample mode) ──
@@ -175,7 +176,7 @@ public class LockablePoolBenchmark {
     @OutputTimeUnit(TimeUnit.NANOSECONDS)
     public List<PoolEntry> refresh_latency_7w1r() {
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
-        return pool.checkoutAll();
+        return pool.checkoutAll(item -> Collections.emptyList());
     }
 
     // ── Isolated: pure writer throughput (no refresh contention) ──
@@ -214,7 +215,7 @@ public class LockablePoolBenchmark {
             PoolEntry e = pool.getAndLock();
             pool.releaseAndUnlock(e);
         }
-        return pool.checkoutAll();
+        return pool.checkoutAll(item -> Collections.emptyList());
     }
 
     private static long simulateWork(PoolEntry entry) {

@@ -10,10 +10,14 @@ package org.opensearch.index.engine.dataformat;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.queue.DefaultLockableHolder;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 
 /**
  * Engine for executing delete operations for a specific data format.
@@ -66,9 +70,20 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
      * @return the result of the delete operation
      * @throws IOException if an I/O error occurs during deletion
      */
-    DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException;
+    DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException;
 
-    default void recordWrite(BytesRef id, long generation) { /* no-op */ }
+    void recordWrite(BytesRef id, long generation);
 
-    default void purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException { /* no-op */ }
+    /**
+     * Called by the writer pool when a writer is permanently removed from the pool.
+     * Atomically:
+     *   - drops idToGen entries pointing at this generation,
+     *   - removes the deleter from the active map,
+     *   - deactivates the deleter (under its write lock; waits for in-flight deleteDoc to drain),
+     *   - applies the drained buffered deletes to the parent writer.
+     *
+     * After this returns, no future deleteDocument call can record buffered deletes on or
+     * apply deleteDoc to this generation.
+     */
+    boolean onWriterCheckedOut(long generation) throws IOException;
 }

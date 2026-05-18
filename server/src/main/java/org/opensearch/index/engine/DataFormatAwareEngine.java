@@ -40,6 +40,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -593,6 +594,7 @@ public class DataFormatAwareEngine implements Indexer {
         Engine.IndexResult indexResult;
 
         assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+        assert plan.version >= 0 : "version must be set. got " + plan.version;
         // Primary term must be positive — it identifies the current primary shard
         assert index.primaryTerm() > 0 : "primary term must be positive but was: " + index.primaryTerm();
 
@@ -612,11 +614,16 @@ public class DataFormatAwareEngine implements Indexer {
             index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(VersionFieldMapper.NAME), plan.version);
             index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(SeqNoFieldMapper.NAME), index.seqNo());
             index.parsedDoc().getDocumentInput().addField(PrimaryTermFieldType.INSTANCE, index.primaryTerm());
+            WriteResult result;
+            if (plan.useUpdateDocument) {
+                result = updateDocs(currentWriter, index.parsedDoc().getDocumentInput(), index.id());
+            } else {
+                result = addDocs(currentWriter, index.parsedDoc().getDocumentInput());
+            }
 
-            WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
-            deleteExecutionEngine.recordWrite(index.uid().bytes(), currentWriter.generation());
             if (result instanceof WriteResult.Success) {
                 indexResult = new Engine.IndexResult(plan.version, index.primaryTerm(), index.seqNo(), true);
+                deleteExecutionEngine.recordWrite(index.uid().bytes(), currentWriter.generation());
                 writerGeneration = currentWriter.generation();
                 // The result must carry the same seq no that was assigned to the operation
                 assert indexResult.getSeqNo() == index.seqNo() : "IndexResult seq no ["
@@ -672,6 +679,16 @@ public class DataFormatAwareEngine implements Indexer {
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
         return indexResult;
+    }
+
+    private <P extends DocumentInput<?>> WriteResult addDocs(Writer<P> currentWriter, P documentInput) throws IOException {
+        return currentWriter.addDoc(documentInput);
+    }
+
+    private <P extends DocumentInput<?>> WriteResult updateDocs(Writer<P> currentWriter, P documentInput, String id) throws IOException {
+        deleteExecutionEngine.deleteDocument(new DeleteInput(IdFieldMapper.NAME, id, currentWriter.generation()),
+            generation -> writerPool.evaluateAllAndLock(holder -> holder.get().generation() == generation));
+        return currentWriter.addDoc(documentInput);
     }
 
     /**
@@ -774,7 +791,8 @@ public class DataFormatAwareEngine implements Indexer {
             // Writer pool must never return null — it creates on demand via the supplier
             assert currentWriter != null : "writer pool returned null writer";
 
-            DeleteResult deleteResult = deleteExecutionEngine.deleteDocument(new DeleteInput(IdFieldMapper.NAME, delete.id(), currentWriter.generation()));
+            DeleteResult deleteResult = deleteExecutionEngine.deleteDocument(new DeleteInput(IdFieldMapper.NAME, delete.id(), currentWriter.generation()),
+                generation -> writerPool.evaluateAllAndLock(holder -> holder.get().generation() == generation));
             if (deleteResult instanceof DeleteResult.Success) {
                 return new Engine.DeleteResult(plan.version, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
             } else {
@@ -934,6 +952,7 @@ public class DataFormatAwareEngine implements Indexer {
     public void refresh(String source) throws EngineException {
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
+        final AtomicBoolean deletesApplied = new AtomicBoolean(false);
         List<Closeable> toClose = new ArrayList<>();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -944,7 +963,15 @@ public class DataFormatAwareEngine implements Indexer {
                     // afterRefresh will drop the old map once the new snapshot makes those versions resolvable.
                     versionMap.beforeRefresh();
                     try {
-                        List<DefaultLockableHolder<Writer<?>>> writers = writerPool.checkoutAll();
+                        List<DefaultLockableHolder<Writer<?>>> writers = writerPool.checkoutAll(checkedOutWriter -> {
+                                try {
+                                    deletesApplied.set(deleteExecutionEngine.onWriterCheckedOut(checkedOutWriter.get().generation()));
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        );
+
                         List<Segment> existingSegments = catalogSnapshot.get().getSegments();
                         List<Segment> newSegments = new ArrayList<>();
 
@@ -983,29 +1010,37 @@ public class DataFormatAwareEngine implements Indexer {
                             .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
                             : "new segment generation collides with an existing segment generation";
 
-                        deleteExecutionEngine.purgeGenerationsAndApplyDeleteToParent(
-                            writers.stream().map(writer -> writer.get().generation()).toList()
-                        );
-
-                        // refresh only if new segments have been created or force param is true
+                        // refresh listeners and reader managers are notified when:
+                        //   - new segments were produced by per-gen writers (refreshed = true), OR
+                        //   - deletes were applied to the parent writer (deletesApplied = true).
+                        // The latter is critical because deletion-only refreshes don't produce new segments,
+                        // but readers still need to be reopened to see the newly-marked-deleted docs.
                         notifyRefreshListenersBefore();
-                        if (refreshed) {
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
-                            RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
-                            // Refresh result must contain at least as many segments as existed before (existing + new)
-                            assert result.refreshedSegments().size() >= existingSegments.size()
-                                : "refresh must not lose existing segments; had "
-                                    + existingSegments.size()
-                                    + " but got "
-                                    + result.refreshedSegments().size();
-
-                            catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                        if (refreshed || deletesApplied.get()) {
+                            final List<Segment> finalSegments;
+                            if (refreshed) {
+                                RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
+                                RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
+                                // Refresh result must contain at least as many segments as existed before (existing + new)
+                                assert result.refreshedSegments().size() >= existingSegments.size()
+                                    : "refresh must not lose existing segments; had "
+                                        + existingSegments.size()
+                                        + " but got "
+                                        + result.refreshedSegments().size();
+                                finalSegments = result.refreshedSegments();
+                            } else {
+                                // Pure-delete refresh: keep the existing segment list, but bump the snapshot
+                                // so reader-manager listeners (e.g. LuceneReaderManager) reopen and pick up
+                                // the new live-docs state from the parent IndexWriter (NRT reader).
+                                finalSegments = existingSegments;
+                            }
+                            catalogSnapshotManager.commitNewSnapshot(finalSegments);
                         }
-                        notifyRefreshListenersAfter(refreshed);
+                        notifyRefreshListenersAfter(refreshed || deletesApplied.get());
                     } finally {
                         store.decRef();
                     }
-                    if (refreshed) {
+                    if (refreshed || deletesApplied.get()) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
                         versionMap.pruneTombstones(
                             engineConfig.getThreadPool().relativeTimeInMillis() - engineConfig.getIndexSettings().getGcDeletesInMillis(),
@@ -1015,7 +1050,6 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
             } finally {
-                System.out.println("Closing writer");
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
@@ -1658,9 +1692,19 @@ public class DataFormatAwareEngine implements Indexer {
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
                 // Close all writers still in the pool (unflushed writers from the current cycle)
-                for (var holder : writerPool.checkoutAll()) {
+                List<DefaultLockableHolder<Writer<?>>> writers = writerPool.checkoutAll(checkedOutWriter -> {
+                        try {
+                            deleteExecutionEngine.onWriterCheckedOut(checkedOutWriter.get().generation());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                );
+
+                for (var holder : writers) {
                     IOUtils.closeWhileHandlingException(holder.get());
                 }
+
                 IOUtils.close(indexingExecutionEngine, committer, translogManager);
                 closeReaders();
             } catch (Exception e) {

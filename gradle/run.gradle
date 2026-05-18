@@ -97,6 +97,9 @@ testClusters {
           // fragment dispatch is streaming-only, so AnalyticsSearchTransportService
           // depends on StreamTransportService at Guice creation time.
           systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
+
+          systemProperty 'opensearch.pluggable.dataformat.merge.enabled', 'false'
+
           // Native lib path for DataFusion FFM bridge
           def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/release').absolutePath
           systemProperty 'java.library.path', nativeLibDir

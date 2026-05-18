@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.common.queue.DefaultLockableHolder;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
@@ -27,6 +28,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.LongFunction;
 
 /**
  * Lucene-based implementation of {@link DeleteExecutionEngine} that tracks per-generation
@@ -76,15 +79,26 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     }
 
     @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
+    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
         Deleter currentDeleter = generationToDeleterMap.get(deleteInput.generation());
+        assert currentDeleter != null && currentDeleter.isActive()
+            : "current-gen deleter must exist and be active while caller holds the writer lock; gen="
+            + deleteInput.generation();
+
+        // TODO: If not present then record buffered deletes.
         currentDeleter.recordBufferedDeletes(deleteInput.id());
         Long previousGen = lookupGen(new Term(deleteInput.fieldName(), Uid.encodeId(deleteInput.id())).bytes());
         if (previousGen != null) {
-            // It means previous writer is active here.
-            // TODO: Check for race condition here.
-            Deleter deleter = generationToDeleterMap.get(previousGen);
-            return deleter.deleteDoc(deleteInput);
+            Closeable previousWriterLock = writerByGenSupplier.apply(previousGen);
+            if (previousWriterLock != null) {
+                // It means previous writer is active here.
+                try {
+                    Deleter deleter = generationToDeleterMap.get(previousGen);
+                    return deleter.deleteDoc(deleteInput);
+                } finally {
+                    previousWriterLock.close();
+                }
+            }
         }
 
         return new DeleteResult.Success(1L, 1L, 1L);
@@ -97,6 +111,8 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public void close() throws IOException {
+        // TODO: Fix this.
+
         for (Deleter deleter : generationToDeleterMap.values()) {
             deleter.close();
         }
@@ -115,31 +131,21 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     }
 
     @Override
-    public void purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException {
-        if (generations.isEmpty()) {
-            return;
+    public boolean onWriterCheckedOut(long generation) throws IOException {
+        idToGen.entrySet().removeIf(e -> e.getValue() == generation);
+
+        Deleter deleter = generationToDeleterMap.remove(generation);
+        if (deleter == null) {
+            return false;
         }
 
-        final Set<Long> purged = Set.copyOf(generations);
-        // 1. Drop idToGen entries pointing at any purged gen.
-        for (Map.Entry<BytesRef, Long> e : idToGen.entrySet()) {
-            if (purged.contains(e.getValue())) {
-                idToGen.remove(e.getKey());
-            }
+        int totalApplied = 0;
+        Queue<String> drained = deleter.deactivate();
+        for (String deletedId : drained) {
+            parentWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(deletedId)));
+            totalApplied++;
         }
 
-        // 2. Remove deleters and clear their buffered deletes under the deleter lock.
-        for (long gen : generations) {
-            Deleter deleter = generationToDeleterMap.remove(gen);
-            Queue<String> bufferedDeletes = deleter.bufferedDeletes();
-            for (String deletedId: bufferedDeletes) {
-                parentWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(deletedId)));
-            }
-
-            parentWriter.flush();
-
-            // TODO: Should I close these deleter here??
-            bufferedDeletes.clear();
-        }
+        return totalApplied > 0;
     }
 }
