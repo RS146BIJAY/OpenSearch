@@ -115,9 +115,9 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     }
 
     @Override
-    public void purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException {
+    public boolean purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException {
         if (generations.isEmpty()) {
-            return;
+            return false;
         }
 
         final Set<Long> purged = Set.copyOf(generations);
@@ -128,18 +128,20 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
             }
         }
 
+        int totalApplied = 0;
         // 2. Remove deleters and clear their buffered deletes under the deleter lock.
         for (long gen : generations) {
             Deleter deleter = generationToDeleterMap.remove(gen);
             Queue<String> bufferedDeletes = deleter.bufferedDeletes();
             for (String deletedId: bufferedDeletes) {
                 parentWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(deletedId)));
+                totalApplied++;
             }
-
-            parentWriter.flush();
 
             // TODO: Should I close these deleter here??
             bufferedDeletes.clear();
         }
+
+        return totalApplied > 0;
     }
 }

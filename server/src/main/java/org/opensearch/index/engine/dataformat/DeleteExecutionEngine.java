@@ -70,5 +70,7 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
 
     default void recordWrite(BytesRef id, long generation) { /* no-op */ }
 
-    default void purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException { /* no-op */ }
+    default boolean purgeGenerationsAndApplyDeleteToParent(List<Long> generations) throws IOException {
+        return false;
+    }
 }

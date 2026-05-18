@@ -612,6 +612,9 @@ public class DataFormatAwareEngine implements Indexer {
             index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(VersionFieldMapper.NAME), plan.version);
             index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(SeqNoFieldMapper.NAME), index.seqNo());
             index.parsedDoc().getDocumentInput().addField(PrimaryTermFieldType.INSTANCE, index.primaryTerm());
+            if (plan.useUpdateDocument) {
+                deleteExecutionEngine.deleteDocument(new DeleteInput(IdFieldMapper.NAME, index.id(), currentWriter.generation()));
+            }
 
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
             deleteExecutionEngine.recordWrite(index.uid().bytes(), currentWriter.generation());
@@ -934,6 +937,7 @@ public class DataFormatAwareEngine implements Indexer {
     public void refresh(String source) throws EngineException {
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
+        boolean deletesApplied = false;
         List<Closeable> toClose = new ArrayList<>();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -983,29 +987,41 @@ public class DataFormatAwareEngine implements Indexer {
                             .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
                             : "new segment generation collides with an existing segment generation";
 
-                        deleteExecutionEngine.purgeGenerationsAndApplyDeleteToParent(
+                        deletesApplied = deleteExecutionEngine.purgeGenerationsAndApplyDeleteToParent(
                             writers.stream().map(writer -> writer.get().generation()).toList()
                         );
 
-                        // refresh only if new segments have been created or force param is true
+                        // refresh listeners and reader managers are notified when:
+                        //   - new segments were produced by per-gen writers (refreshed = true), OR
+                        //   - deletes were applied to the parent writer (deletesApplied = true).
+                        // The latter is critical because deletion-only refreshes don't produce new segments,
+                        // but readers still need to be reopened to see the newly-marked-deleted docs.
                         notifyRefreshListenersBefore();
-                        if (refreshed) {
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
-                            RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
-                            // Refresh result must contain at least as many segments as existed before (existing + new)
-                            assert result.refreshedSegments().size() >= existingSegments.size()
-                                : "refresh must not lose existing segments; had "
-                                    + existingSegments.size()
-                                    + " but got "
-                                    + result.refreshedSegments().size();
-
-                            catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                        if (refreshed || deletesApplied) {
+                            final List<Segment> finalSegments;
+                            if (refreshed) {
+                                RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
+                                RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
+                                // Refresh result must contain at least as many segments as existed before (existing + new)
+                                assert result.refreshedSegments().size() >= existingSegments.size()
+                                    : "refresh must not lose existing segments; had "
+                                        + existingSegments.size()
+                                        + " but got "
+                                        + result.refreshedSegments().size();
+                                finalSegments = result.refreshedSegments();
+                            } else {
+                                // Pure-delete refresh: keep the existing segment list, but bump the snapshot
+                                // so reader-manager listeners (e.g. LuceneReaderManager) reopen and pick up
+                                // the new live-docs state from the parent IndexWriter (NRT reader).
+                                finalSegments = existingSegments;
+                            }
+                            catalogSnapshotManager.commitNewSnapshot(finalSegments);
                         }
-                        notifyRefreshListenersAfter(refreshed);
+                        notifyRefreshListenersAfter(refreshed || deletesApplied);
                     } finally {
                         store.decRef();
                     }
-                    if (refreshed) {
+                    if (refreshed || deletesApplied) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
                         versionMap.pruneTombstones(
                             engineConfig.getThreadPool().relativeTimeInMillis() - engineConfig.getIndexSettings().getGcDeletesInMillis(),
@@ -1015,7 +1031,6 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
             } finally {
-                System.out.println("Closing writer");
                 IOUtils.close(toClose);
                 refreshLock.unlock();
             }
