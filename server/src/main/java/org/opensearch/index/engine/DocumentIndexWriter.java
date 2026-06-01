@@ -95,4 +95,37 @@ public interface DocumentIndexWriter extends Closeable, ReferenceManager.Refresh
     Releasable obtainWriteLockOnAllMap();
 
     boolean validateImmutableFieldNotUpdated(ParseContext.Document previousDocument, BytesRef currentUID);
+
+    /**
+     * Deletes a group (sub-shard), making its segments invisible from the next refresh.
+     * No documents are soft-deleted — the group's segments are excluded at the reader level.
+     *
+     * @param criteria the group bucket name to delete
+     * @return approximate number of docs that will become invisible
+     * @throws IOException if an I/O error occurs
+     */
+    default long deleteGroup(String criteria) throws IOException {
+        throw new UnsupportedOperationException("deleteGroup requires context-aware segments");
+    }
+
+    /**
+     * Freezes a group — new writes are discarded on refresh, but existing data remains searchable.
+     */
+    default void freezeGroup(String criteria) {
+        throw new UnsupportedOperationException("freezeGroup requires context-aware segments");
+    }
+
+    /**
+     * Unfreezes a previously frozen group.
+     */
+    default void unfreezeGroup(String criteria) {
+        throw new UnsupportedOperationException("unfreezeGroup requires context-aware segments");
+    }
+
+    /**
+     * Returns the GroupReaderManager if context-aware segments is enabled, null otherwise.
+     */
+    default GroupReaderManager getGroupReaderManager() {
+        return null;
+    }
 }

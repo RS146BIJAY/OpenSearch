@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -43,6 +44,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -542,13 +544,21 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
     private void refreshDocumentsForParentDirectory(CriteriaBasedIndexWriterLookup oldMap) throws IOException {
         final Map<String, CompositeIndexWriter.DisposableIndexWriter> markForRefreshIndexWritersMap = oldMap.criteriaBasedIndexWriterMap;
+        final Set<String> groupsToSkip = groupReaderManager.getGroupsToSkipOnRefresh();
         deletePreviousVersionsForUpdatedDocuments();
         Directory directoryToCombine;
-        for (CompositeIndexWriter.DisposableIndexWriter childDisposableWriter : markForRefreshIndexWritersMap.values()) {
+        for (Map.Entry<String, CompositeIndexWriter.DisposableIndexWriter> entry : markForRefreshIndexWritersMap.entrySet()) {
+            String groupCriteria = entry.getKey();
+            CompositeIndexWriter.DisposableIndexWriter childDisposableWriter = entry.getValue();
             directoryToCombine = childDisposableWriter.getIndexWriter().getDirectory();
             childDisposableWriter.getIndexWriter().close();
             long pendingNumDocsByOldChildWriter = childDisposableWriter.getIndexWriter().getPendingNumDocs();
-            accumulatingIndexWriter.addIndexes(directoryToCombine);
+            if (groupsToSkip.contains(groupCriteria)) {
+                logger.debug("Skipping addIndexes for group [{}] (deleted or frozen)", groupCriteria);
+            } else {
+                accumulatingIndexWriter.addIndexes(directoryToCombine);
+                groupReaderManager.markGroupDirty(groupCriteria);
+            }
             Path childDirectoryPath = getLocalFSDirectory(directoryToCombine).getDirectory();
             IOUtils.closeWhileHandlingException(directoryToCombine);
             childWriterPendingNumDocs.addAndGet(-pendingNumDocsByOldChildWriter);
@@ -914,6 +924,56 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
     public IndexWriter getAccumulatingIndexWriter() {
         return accumulatingIndexWriter;
+    }
+
+    private final GroupReaderManager groupReaderManager = new GroupReaderManager();
+
+    @Override
+    public GroupReaderManager getGroupReaderManager() {
+        return groupReaderManager;
+    }
+
+    @Override
+    public long deleteGroup(String criteria) throws IOException {
+        ensureOpen();
+        logger.info("Deleting group [{}] - will be excluded from next refresh", criteria);
+        groupReaderManager.deleteGroup(criteria);
+
+        DisposableIndexWriter activeWriter = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.remove(criteria);
+        if (activeWriter != null) {
+            try {
+                activeWriter.getIndexWriter().rollback();
+            } catch (AlreadyClosedException e) {
+                // already closed
+            }
+        }
+
+        long invisibleDocs = 0;
+        try {
+            DirectoryReader reader = DirectoryReader.open(accumulatingIndexWriter);
+            try {
+                invisibleDocs = groupReaderManager.countDocsForGroup(reader, criteria);
+            } finally {
+                reader.close();
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to count docs for group [{}]", criteria, e);
+        }
+
+        logger.info("Group [{}] marked for deletion. {} docs will become invisible on next refresh.", criteria, invisibleDocs);
+        return invisibleDocs;
+    }
+
+    @Override
+    public void freezeGroup(String criteria) {
+        ensureOpen();
+        groupReaderManager.freezeGroup(criteria);
+    }
+
+    @Override
+    public void unfreezeGroup(String criteria) {
+        ensureOpen();
+        groupReaderManager.unfreezeGroup(criteria);
     }
 
     @Override
